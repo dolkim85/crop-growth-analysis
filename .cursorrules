@@ -1,0 +1,137 @@
+1] 프로젝트 디렉토리 구조
+/backend
+├── app/
+│   ├── routes/               # API 엔드포인트
+│   │   └── analyze.py
+│   ├── services/             # AI 분석, 비즈니스 로직
+│   │   └── ai.py
+│   ├── models/               # 데이터 모델 (필요 시)
+│   │   └── plant.py
+│   ├── utils/                # 공용 유틸리티
+│   │   └── logger.py
+│   └── config.py             # 환경 설정
+├── run.py                    # Flask 실행 진입점
+├── requirements.txt          # 의존성 목록
+├── .env                      # 환경변수 설정
+├── .gitignore                # Git 제외 항목
+└── uploads/                  # 이미지 저장 폴더
+
+[2] .env 파일 (환경변수 설정)
+FLASK_ENV=development
+SECRET_KEY=mysecret
+AI_MODEL_PATH=./models/myplantmodel.pt
+UPLOAD_FOLDER=./uploads
+
+📦 [3] requirements.txt
+Flask
+flask-cors
+python-dotenv
+torch
+opencv-python
+pillow
+numpy
+
+🚀 [4] run.py (서버 실행 진입점)
+from flask import Flask
+from flask_cors import CORS
+from app.routes.analyze import analyze_bp
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+app = Flask(__name__)
+CORS(app)
+
+app.config['UPLOAD_FOLDER'] = os.getenv("UPLOAD_FOLDER")
+app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
+
+# 블루프린트 등록
+app.register_blueprint(analyze_bp)
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=5000)
+
+🌐 [5] routes/analyze.py (분석 API)
+from flask import Blueprint, request, jsonify
+from app.services.ai import analyze_plant_image
+import os
+import uuid
+
+analyze_bp = Blueprint("analyze", __name__, url_prefix="/api/v1")
+
+@analyze_bp.route("/analyze", methods=["POST"])
+def analyze():
+    if 'image' not in request.files:
+        return jsonify({"status": "error", "message": "No image uploaded"}), 400
+
+    image = request.files['image']
+    filename = f"{uuid.uuid4()}.jpg"
+    filepath = os.path.join(os.getenv("UPLOAD_FOLDER"), filename)
+    image.save(filepath)
+
+    try:
+        result = analyze_plant_image(filepath)
+        return jsonify({"status": "success", "message": "분석 완료", "data": result})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+🧠 [6] services/ai.py (AI 분석 로직)
+from PIL import Image
+import torch
+
+def analyze_plant_image(image_path):
+    # 1. 모델 불러오기
+    model = torch.load("models/myplantmodel.pt")
+    model.eval()
+
+    # 2. 이미지 전처리
+    image = Image.open(image_path).convert("RGB")
+    # 여기서 전처리 코드 삽입 (예: resize, normalization 등)
+
+    # 3. 추론
+    # 예시용 가짜 리턴값
+    return {
+        "health": "좋음",
+        "growth": "정상",
+        "recommend": "물 주기 필요"
+    }
+
+
+🔐 [7] API 응답 형식 규칙
+모든 응답은 다음 구조를 따릅니다:
+{
+  "status": "success",
+  "message": "분석 완료",
+  "data": {
+    "health": "좋음",
+    "growth": "정상",
+    "recommend": "물 주기 필요"
+  }
+}
+에러 발생 시:
+{
+  "status": "error",
+  "message": "이미지를 찾을 수 없습니다"
+}
+
+🧹 [8] .gitignore (Git 제외 목록)
+__pycache__/
+*.pyc
+.env
+uploads/
+models/
+
+🧪 [9] API 테스트 예시 (curl)
+curl -X POST http://localhost:5000/api/v1/analyze \
+  -F "image=@./test_images/leaf.jpg"
+
+📚 [10] 기본 사용 규칙 요약
+| 항목         | 규칙                                   |
+| ---------- | ------------------------------------ |
+| API Prefix | `/api/v1/`                           |
+| 업로드 파일 위치  | `.env`의 `UPLOAD_FOLDER` 기준           |
+| 이미지 처리 순서  | 저장 → 경로 전달 → 분석 후 dict 반환            |
+| AI 분석 모듈   | `services/ai.py` 에만 작성, Flask 코드와 분리 |
+| 모델 위치      | `models/` 폴더 내 `.pt` 파일              |
+
