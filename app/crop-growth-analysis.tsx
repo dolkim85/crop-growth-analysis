@@ -32,6 +32,7 @@ import {
   CalendarIcon,
   Check,
 } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 import Image from "next/image"
 import { ImageEditorModal } from "@/components/image-editor-modal"
 import { GrowthChart } from "@/components/growth-chart"
@@ -55,32 +56,21 @@ interface ObservationCamera {
 }
 
 interface AnalysisResult {
-  plantHealth: number
-  growthRate: number
-  size: number
-  height: number
-  leafCount: number
-  leafSize: number
-  leafArea: number // 새로 추가
-  leafColor: {
-    rgb: { r: number; g: number; b: number }
-    hsv: { h: number; s: number; v: number }
-    greenness: number
-    yellowing: number
-    browning: number
-  } // 새로 추가
-  leafTexture: string // 새로 추가
-  leafShape: string // 새로 추가
+  modelId: string // 사용된 모델 ID
+  selectedAnalysisItems: string[] // 선택된 분석 항목들
+  analysisData: { [key: string]: any } // 동적 분석 데이터
   condition: string
   recommendations: string[]
   date: string
   comparedImages?: string[]
-  detailedMeasurements?: {
-    leafPerimeter: number
-    leafThickness: number
-    stemDiameter: number
-    nodeCount: number
-  } // 새로 추가
+  
+  // 기본 항목들 (호환성을 위해 유지)
+  plantHealth?: number
+  growthRate?: number
+  size?: number
+  height?: number
+  leafCount?: number
+  leafSize?: number
 }
 
 interface SavedAnalysis {
@@ -174,6 +164,7 @@ export default function CropGrowthAnalysis() {
   ])
   const [selectedCamera, setSelectedCamera] = useState<string>("")
   const [selectedModel, setSelectedModel] = useState<string>("")
+  const [selectedAnalysisItems, setSelectedAnalysisItems] = useState<string[]>([])
   const [selectedPlantType, setSelectedPlantType] = useState<string>("")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
@@ -190,31 +181,32 @@ export default function CropGrowthAnalysis() {
       date: "2025-04-28T10:00:00",
       userId: "spinmoll", // 예비 계정용 데이터
       result: {
+        modelId: "plant-health-basic",
+        selectedAnalysisItems: ["plantHealth", "leafColor", "size", "leafCount", "condition"],
+        analysisData: {
+          plantHealth: 97,
+          leafColor: {
+            rgb: { r: 70, g: 130, b: 50 },
+            hsv: { h: 110, s: 70, v: 80 },
+            greenness: 85,
+            yellowing: 8,
+            browning: 2,
+          },
+          size: 18,
+          leafCount: 12,
+          condition: "우수"
+        },
+        condition: "우수",
+        recommendations: ["수분 공급량을 10% 증가시키세요"],
+        date: "2025-04-28T10:00:00",
+        
+        // 호환성을 위한 기본 값들
         plantHealth: 97,
         growthRate: 12,
         size: 18,
         height: 28,
         leafCount: 12,
         leafSize: 6,
-        plantArea: 0,
-        leafColor: {
-          rgb: { r: 0, g: 0, b: 0 },
-          hsv: { h: 0, s: 0, v: 0 },
-          greenness: 0,
-          yellowing: 0,
-          browning: 0,
-        },
-        leafTexture: "",
-        leafShape: "",
-        condition: "양호",
-        recommendations: ["수분 공급량을 10% 증가시키세요"],
-        date: "2025-04-28",
-        detailedMeasurements: {
-          leafPerimeter: 0,
-          leafThickness: 0,
-          stemDiameter: 0,
-          nodeCount: 0,
-        },
       },
     },
     {
@@ -223,31 +215,30 @@ export default function CropGrowthAnalysis() {
       date: "2025-05-15T10:00:00",
       userId: "spinmoll", // 예비 계정용 데이터
       result: {
+        modelId: "plantnet-basic",
+        selectedAnalysisItems: ["plantSpecies", "plantHealth", "diseaseDetection", "confidence", "leafCondition"],
+        analysisData: {
+          plantSpecies: "토마토",
+          plantHealth: 92,
+          diseaseDetection: {
+            detected: false,
+            confidence: 85,
+            type: "없음"
+          },
+          confidence: 88,
+          leafCondition: "양호"
+        },
+        condition: "양호",
+        recommendations: ["질소 비료를 추가 공급하는 것을 권장합니다"],
+        date: "2025-05-15T10:00:00",
+        
+        // 호환성을 위한 기본 값들
         plantHealth: 92,
         growthRate: 10,
         size: 20,
         height: 32,
         leafCount: 14,
         leafSize: 7,
-        plantArea: 0,
-        leafColor: {
-          rgb: { r: 0, g: 0, b: 0 },
-          hsv: { h: 0, s: 0, v: 0 },
-          greenness: 0,
-          yellowing: 0,
-          browning: 0,
-        },
-        leafTexture: "",
-        leafShape: "",
-        condition: "양호",
-        recommendations: ["질소 비료를 추가 공급하는 것을 권장합니다"],
-        date: "2025-05-15",
-        detailedMeasurements: {
-          leafPerimeter: 0,
-          leafThickness: 0,
-          stemDiameter: 0,
-          nodeCount: 0,
-        },
       },
     },
     {
@@ -256,31 +247,26 @@ export default function CropGrowthAnalysis() {
       date: "2025-05-10T10:00:00",
       userId: "spinmoll", // 예비 계정용 데이터
       result: {
+        modelId: "tensorflow-plant-free",
+        selectedAnalysisItems: ["plantClassification", "growthStage", "plantHealth", "maturityLevel", "leafDevelopment"],
+        analysisData: {
+          plantClassification: "오이",
+          growthStage: "성장기",
+          plantHealth: 88,
+          maturityLevel: 75,
+          leafDevelopment: "양호한 발달"
+        },
+        condition: "양호",
+        recommendations: ["잎의 색상 변화를 지속적으로 모니터링하세요"],
+        date: "2025-05-10T10:00:00",
+        
+        // 호환성을 위한 기본 값들
         plantHealth: 88,
         growthRate: 15,
         size: 22,
         height: 35,
         leafCount: 8,
         leafSize: 9,
-        plantArea: 0,
-        leafColor: {
-          rgb: { r: 0, g: 0, b: 0 },
-          hsv: { h: 0, s: 0, v: 0 },
-          greenness: 0,
-          yellowing: 0,
-          browning: 0,
-        },
-        leafTexture: "",
-        leafShape: "",
-        condition: "양호",
-        recommendations: ["잎의 색상 변화를 지속적으로 모니터링하세요"],
-        date: "2025-05-10",
-        detailedMeasurements: {
-          leafPerimeter: 0,
-          leafThickness: 0,
-          stemDiameter: 0,
-          nodeCount: 0,
-        },
       },
     },
   ])
@@ -322,7 +308,14 @@ export default function CropGrowthAnalysis() {
       description: "기본적인 식물 건강 상태를 분석합니다. 무료로 제공되며 일일 50회 제한이 있습니다.",
       provider: "OpenCV + TensorFlow Lite",
       accuracy: "78%",
-      features: ["기본 건강도 측정", "잎 색상 분석", "크기 측정"]
+      features: ["기본 건강도 측정", "잎 색상 분석", "크기 측정"],
+      analysisItems: [
+        { id: "plantHealth", name: "식물 건강도 (%)", type: "number", unit: "%" },
+        { id: "leafColor", name: "잎 색상 분석", type: "object" },
+        { id: "size", name: "전체 크기", type: "number", unit: "cm" },
+        { id: "leafCount", name: "잎 개수", type: "number", unit: "개" },
+        { id: "condition", name: "전반적 상태", type: "string" }
+      ]
     },
     {
       id: "plantnet-basic",
@@ -331,7 +324,14 @@ export default function CropGrowthAnalysis() {
       description: "식물 종 식별 및 기본 건강 분석을 제공하는 무료 모델입니다.",
       provider: "PlantNet API",
       accuracy: "82%",
-      features: ["식물 종 식별", "기본 건강 분석", "병해 탐지"]
+      features: ["식물 종 식별", "기본 건강 분석", "병해 탐지"],
+      analysisItems: [
+        { id: "plantSpecies", name: "식물 종 식별", type: "string" },
+        { id: "plantHealth", name: "식물 건강도 (%)", type: "number", unit: "%" },
+        { id: "diseaseDetection", name: "병해 탐지", type: "object" },
+        { id: "confidence", name: "식별 신뢰도", type: "number", unit: "%" },
+        { id: "leafCondition", name: "잎 상태", type: "string" }
+      ]
     },
     {
       id: "tensorflow-plant-free",
@@ -340,7 +340,14 @@ export default function CropGrowthAnalysis() {
       description: "Google의 TensorFlow를 기반으로 한 무료 식물 분류 모델입니다.",
       provider: "Google TensorFlow",
       accuracy: "75%",
-      features: ["식물 분류", "기본 건강도", "성장 단계 분석"]
+      features: ["식물 분류", "기본 건강도", "성장 단계 분석"],
+      analysisItems: [
+        { id: "plantClassification", name: "식물 분류", type: "string" },
+        { id: "growthStage", name: "성장 단계", type: "string" },
+        { id: "plantHealth", name: "기본 건강도", type: "number", unit: "%" },
+        { id: "maturityLevel", name: "성숙도", type: "number", unit: "%" },
+        { id: "leafDevelopment", name: "잎 발달 상태", type: "string" }
+      ]
     },
 
     // 유료 모델
@@ -351,7 +358,15 @@ export default function CropGrowthAnalysis() {
       description: "전문가 수준의 식물 질병 진단 및 해결책 제공. 농업 전문가들이 사용하는 고정밀 AI 모델입니다.",
       provider: "PEAT (Progressive Environmental & Agricultural Technologies)",
       accuracy: "94%",
-      features: ["정밀 질병 진단", "해결책 제안", "영양 결핍 분석", "해충 식별", "전문가 상담"]
+      features: ["정밀 질병 진단", "해결책 제안", "영양 결핍 분석", "해충 식별", "전문가 상담"],
+      analysisItems: [
+        { id: "diseaseAnalysis", name: "정밀 질병 진단", type: "object" },
+        { id: "nutritionDeficiency", name: "영양 결핍 분석", type: "object" },
+        { id: "pestIdentification", name: "해충 식별", type: "object" },
+        { id: "treatmentRecommendation", name: "치료법 제안", type: "string" },
+        { id: "severityLevel", name: "심각도 수준", type: "number", unit: "/10" },
+        { id: "expertConsultation", name: "전문가 의견", type: "string" }
+      ]
     },
     {
       id: "cropx-premium",
@@ -360,7 +375,15 @@ export default function CropGrowthAnalysis() {
       description: "IoT 센서와 AI를 결합한 프리미엄 작물 분석 솔루션입니다.",
       provider: "CropX Technologies",
       accuracy: "96%",
-      features: ["실시간 모니터링", "토양 분석", "관개 최적화", "수확량 예측", "기상 연동"]
+      features: ["실시간 모니터링", "토양 분석", "관개 최적화", "수확량 예측", "기상 연동"],
+      analysisItems: [
+        { id: "soilMoisture", name: "토양 수분", type: "number", unit: "%" },
+        { id: "soilTemperature", name: "토양 온도", type: "number", unit: "°C" },
+        { id: "irrigationNeed", name: "관개 필요량", type: "number", unit: "L/m²" },
+        { id: "yieldPrediction", name: "수확량 예측", type: "number", unit: "kg/m²" },
+        { id: "weatherImpact", name: "기상 영향", type: "object" },
+        { id: "optimalHarvest", name: "최적 수확일", type: "string" }
+      ]
     },
     {
       id: "agromonitoring-pro",
@@ -369,7 +392,14 @@ export default function CropGrowthAnalysis() {
       description: "위성 이미지와 AI를 활용한 정밀 농업 모니터링 서비스입니다.",
       provider: "OpenWeather Agro API",
       accuracy: "91%",
-      features: ["위성 이미지 분석", "식생 지수", "기상 예보", "병해충 예측", "수확 시기 예측"]
+      features: ["위성 이미지 분석", "식생 지수", "기상 예보", "병해충 예측", "수확 시기 예측"],
+      analysisItems: [
+        { id: "ndvi", name: "정규식생지수 (NDVI)", type: "number", unit: "" },
+        { id: "satelliteAnalysis", name: "위성 이미지 분석", type: "object" },
+        { id: "weatherForecast", name: "기상 예보", type: "object" },
+        { id: "pestRisk", name: "병해충 위험도", type: "number", unit: "/10" },
+        { id: "harvestTiming", name: "수확 시기 예측", type: "string" }
+      ]
     },
     {
       id: "azure-farmbeats",
@@ -378,7 +408,15 @@ export default function CropGrowthAnalysis() {
       description: "Microsoft의 클라우드 기반 농업 AI 플랫폼으로 엔터프라이즈급 분석을 제공합니다.",
       provider: "Microsoft Azure",
       accuracy: "97%",
-      features: ["드론 이미지 분석", "다중 센서 융합", "예측 분석", "자동화 제어", "대시보드"]
+      features: ["드론 이미지 분석", "다중 센서 융합", "예측 분석", "자동화 제어", "대시보드"],
+      analysisItems: [
+        { id: "droneAnalysis", name: "드론 이미지 분석", type: "object" },
+        { id: "sensorFusion", name: "다중 센서 데이터", type: "object" },
+        { id: "predictiveAnalytics", name: "예측 분석", type: "object" },
+        { id: "automationControl", name: "자동화 제어", type: "string" },
+        { id: "aiDashboard", name: "AI 대시보드", type: "object" },
+        { id: "yieldOptimization", name: "수확량 최적화", type: "number", unit: "%" }
+      ]
     },
 
     // 학습 AI 모델
@@ -389,7 +427,14 @@ export default function CropGrowthAnalysis() {
       description: "사용자 데이터로 지속적으로 학습하는 맞춤형 CNN 모델입니다. 사용할수록 정확도가 향상됩니다.",
       provider: "자체 개발 모델",
       accuracy: "학습중 (현재 71%)",
-      features: ["개인화 학습", "지속적 개선", "맞춤형 분석", "사용자 피드백 반영"]
+      features: ["개인화 학습", "지속적 개선", "맞춤형 분석", "사용자 피드백 반영"],
+      analysisItems: [
+        { id: "personalizedHealth", name: "개인화 건강도", type: "number", unit: "%" },
+        { id: "learningProgress", name: "학습 진행도", type: "number", unit: "%" },
+        { id: "customMetrics", name: "맞춤형 지표", type: "object" },
+        { id: "userFeedback", name: "사용자 피드백", type: "string" },
+        { id: "adaptiveRecommendation", name: "적응형 권장사항", type: "string" }
+      ]
     },
     {
       id: "transfer-learning-plant",
@@ -398,7 +443,14 @@ export default function CropGrowthAnalysis() {
       description: "ImageNet 사전 훈련 모델을 기반으로 농작물 데이터로 전이학습하는 모델입니다.",
       provider: "ResNet50 + Custom Dataset",
       accuracy: "학습중 (현재 68%)",
-      features: ["전이학습", "빠른 적응", "다양한 작물 지원", "실시간 학습"]
+      features: ["전이학습", "빠른 적응", "다양한 작물 지원", "실시간 학습"],
+      analysisItems: [
+        { id: "transferAccuracy", name: "전이학습 정확도", type: "number", unit: "%" },
+        { id: "adaptationSpeed", name: "적응 속도", type: "number", unit: "epochs" },
+        { id: "cropVariety", name: "작물 다양성 지원", type: "object" },
+        { id: "realTimeLearning", name: "실시간 학습 상태", type: "string" },
+        { id: "modelConfidence", name: "모델 신뢰도", type: "number", unit: "%" }
+      ]
     },
     {
       id: "automl-vision-plant",
@@ -407,7 +459,14 @@ export default function CropGrowthAnalysis() {
       description: "Google의 AutoML Vision을 사용해 자동으로 최적화되는 식물 분석 모델입니다.",
       provider: "Google AutoML Vision",
       accuracy: "학습중 (현재 73%)",
-      features: ["자동 최적화", "하이퍼파라미터 튜닝", "모델 앙상블", "성능 모니터링"]
+      features: ["자동 최적화", "하이퍼파라미터 튜닝", "모델 앙상블", "성능 모니터링"],
+      analysisItems: [
+        { id: "autoOptimization", name: "자동 최적화 점수", type: "number", unit: "%" },
+        { id: "hyperparameterTuning", name: "하이퍼파라미터 상태", type: "object" },
+        { id: "ensemblePerformance", name: "앙상블 성능", type: "number", unit: "%" },
+        { id: "performanceMonitoring", name: "성능 모니터링", type: "object" },
+        { id: "optimizationHistory", name: "최적화 이력", type: "object" }
+      ]
     },
     {
       id: "ensemble-learning-crop",
@@ -416,7 +475,14 @@ export default function CropGrowthAnalysis() {
       description: "여러 머신러닝 모델을 결합한 앙상블 학습으로 높은 정확도를 추구하는 모델입니다.",
       provider: "Random Forest + SVM + Neural Network",
       accuracy: "학습중 (현재 76%)",
-      features: ["앙상블 학습", "다중 모델 융합", "높은 안정성", "오버피팅 방지"]
+      features: ["앙상블 학습", "다중 모델 융합", "높은 안정성", "오버피팅 방지"],
+      analysisItems: [
+        { id: "ensembleAccuracy", name: "앙상블 정확도", type: "number", unit: "%" },
+        { id: "modelFusion", name: "모델 융합 결과", type: "object" },
+        { id: "stabilityScore", name: "안정성 점수", type: "number", unit: "/10" },
+        { id: "overfittingPrevention", name: "오버피팅 방지율", type: "number", unit: "%" },
+        { id: "individualModelScores", name: "개별 모델 점수", type: "object" }
+      ]
     }
   ]
 
@@ -517,6 +583,27 @@ export default function CropGrowthAnalysis() {
   const getUserAnalyses = () => savedAnalyses.filter((analysis) => analysis.userId === userId)
   const getUserImages = () => uploadedImages.filter((image) => image.userId === userId)
 
+  // 모델 선택 시 분석 항목들 초기화
+  const handleModelChange = (modelId: string) => {
+    setSelectedModel(modelId)
+    const model = models.find(m => m.id === modelId)
+    if (model) {
+      // 기본적으로 모든 항목 선택
+      setSelectedAnalysisItems(model.analysisItems.map(item => item.id))
+    } else {
+      setSelectedAnalysisItems([])
+    }
+  }
+
+  // 분석 항목 체크박스 토글
+  const toggleAnalysisItem = (itemId: string) => {
+    setSelectedAnalysisItems(prev => 
+      prev.includes(itemId) 
+        ? prev.filter(id => id !== itemId)
+        : [...prev, itemId]
+    )
+  }
+
   const addNewPlantType = () => {
     if (newPlantTypeName.trim()) {
       const newPlantType = {
@@ -559,7 +646,7 @@ export default function CropGrowthAnalysis() {
     if (data.length === 0) return null
 
     const latest = data[data.length - 1]
-    const avgHealth = data.reduce((sum, item) => sum + item.result.plantHealth, 0) / data.length
+    const avgHealth = data.reduce((sum, item) => sum + (item.result.plantHealth || 0), 0) / data.length
 
     return {
       count: data.length,
@@ -644,7 +731,15 @@ export default function CropGrowthAnalysis() {
   }
 
   const runAnalysis = async () => {
-    if (!selectedModel || selectedAnalysisImages.length === 0 || !selectedPlantType) return
+    if (!selectedModel || selectedAnalysisImages.length === 0 || !selectedPlantType) {
+      alert("분석 모델, 식물 종류, 그리고 최소 하나의 이미지를 선택해주세요.")
+      return
+    }
+
+    if (selectedAnalysisItems.length === 0) {
+      alert("분석할 항목을 최소 하나 이상 선택해주세요.")
+      return
+    }
 
     setIsAnalyzing(true)
 
@@ -666,49 +761,99 @@ export default function CropGrowthAnalysis() {
         }
       }
 
-      // 2단계: 실제 분석 수행
+      // 2단계: 선택된 모델과 분석 항목에 따른 분석 결과 생성
+      const selectedModelData = models.find(m => m.id === selectedModel)
+      if (!selectedModelData) {
+        alert("선택된 모델을 찾을 수 없습니다.")
+        setIsAnalyzing(false)
+        return
+      }
+
       await new Promise((resolve) => setTimeout(resolve, 3000))
 
+      const analysisData: { [key: string]: any } = {}
+      
+      // 선택된 분석 항목들에 대해서만 데이터 생성
+      selectedAnalysisItems.forEach(itemId => {
+        const item = selectedModelData.analysisItems.find(ai => ai.id === itemId)
+        if (item) {
+          switch (item.type) {
+            case "number":
+              if (itemId === "plantHealth") {
+                analysisData[itemId] = Math.floor(Math.random() * 30 + 70) // 70-100%
+              } else if (itemId === "size" || itemId === "height") {
+                analysisData[itemId] = Math.floor(Math.random() * 30 + 20) // 20-50cm
+              } else if (itemId === "leafCount") {
+                analysisData[itemId] = Math.floor(Math.random() * 15 + 5) // 5-20개
+              } else if (itemId.includes("Temperature")) {
+                analysisData[itemId] = Math.floor(Math.random() * 20 + 15) // 15-35°C
+              } else if (itemId.includes("Moisture")) {
+                analysisData[itemId] = Math.floor(Math.random() * 40 + 40) // 40-80%
+              } else if (itemId.includes("Accuracy") || itemId.includes("confidence")) {
+                analysisData[itemId] = Math.floor(Math.random() * 20 + 75) // 75-95%
+              } else {
+                analysisData[itemId] = Math.floor(Math.random() * 100)
+              }
+              break
+            case "string":
+              if (itemId === "condition") {
+                analysisData[itemId] = ["우수", "양호", "보통", "주의"][Math.floor(Math.random() * 4)]
+              } else if (itemId.includes("Species") || itemId.includes("Classification")) {
+                analysisData[itemId] = plantTypes.find(p => p.id === selectedPlantType)?.name || selectedPlantType
+              } else if (itemId.includes("Stage")) {
+                analysisData[itemId] = ["묘목", "성장기", "개화기", "결실기"][Math.floor(Math.random() * 4)]
+              } else {
+                analysisData[itemId] = `${item.name} 분석 결과`
+              }
+              break
+            case "object":
+              if (itemId === "leafColor") {
+                analysisData[itemId] = {
+                  rgb: { r: Math.floor(Math.random() * 50) + 50, g: Math.floor(Math.random() * 100) + 100, b: Math.floor(Math.random() * 30) + 30 },
+                  hsv: { h: Math.random() * 60 + 80, s: Math.random() * 40 + 40, v: Math.random() * 30 + 50 },
+                  greenness: Math.random() * 30 + 60,
+                  yellowing: Math.random() * 20 + 5,
+                  browning: Math.random() * 15 + 2,
+                }
+              } else if (itemId.includes("disease") || itemId.includes("Disease")) {
+                analysisData[itemId] = {
+                  detected: Math.random() > 0.7,
+                  confidence: Math.floor(Math.random() * 30 + 70),
+                  type: ["잎마름병", "역병", "탄저병", "없음"][Math.floor(Math.random() * 4)]
+                }
+              } else {
+                analysisData[itemId] = {
+                  status: "정상",
+                  value: Math.floor(Math.random() * 100),
+                  details: `${item.name} 상세 분석 결과`
+                }
+              }
+              break
+          }
+        }
+      })
+
       const mockResult: AnalysisResult = {
-        plantHealth: Math.floor(Math.random() * 20) + 80,
-        growthRate: Math.floor(Math.random() * 10) + 10,
-        size: Math.floor(Math.random() * 5) + 15,
-        height: Math.floor(Math.random() * 10) + 20,
-        leafCount: Math.floor(Math.random() * 5) + 8,
-        leafSize: Math.floor(Math.random() * 3) + 4,
-        leafArea: Math.floor(Math.random() * 50) + 100, // cm²
-        leafColor: {
-          rgb: {
-            r: Math.floor(Math.random() * 50) + 50,
-            g: Math.floor(Math.random() * 100) + 100,
-            b: Math.floor(Math.random() * 50) + 30,
-          },
-          hsv: {
-            h: Math.floor(Math.random() * 60) + 90, // 녹색 계열
-            s: Math.floor(Math.random() * 30) + 60,
-            v: Math.floor(Math.random() * 30) + 60,
-          },
-          greenness: Math.floor(Math.random() * 20) + 75,
-          yellowing: Math.floor(Math.random() * 15) + 5,
-          browning: Math.floor(Math.random() * 10) + 2,
-        },
-        leafTexture: ["매끄러움", "약간 거침", "거침", "매우 거침"][Math.floor(Math.random() * 4)],
-        leafShape: ["타원형", "심장형", "손바닥형", "침형", "원형"][Math.floor(Math.random() * 5)],
-        condition: "양호",
+        modelId: selectedModel,
+        selectedAnalysisItems: selectedAnalysisItems,
+        analysisData,
+        condition: analysisData.condition || "양호",
         recommendations: [
           "수분 공급량을 10% 증가시키세요",
           "질소 비료를 추가 공급하는 것을 권장합니다",
           "잎의 색상 변화를 지속적으로 모니터링하세요",
           "적절한 광량을 유지해주세요",
-        ],
-        date: new Date().toLocaleDateString("ko-KR"),
+        ].slice(0, Math.floor(Math.random() * 3) + 1),
+        date: new Date().toISOString(),
         comparedImages: selectedAnalysisImages,
-        detailedMeasurements: {
-          leafPerimeter: Math.floor(Math.random() * 20) + 30, // cm
-          leafThickness: Math.round((Math.random() * 0.5 + 0.2) * 100) / 100, // mm
-          stemDiameter: Math.round((Math.random() * 2 + 1) * 100) / 100, // cm
-          nodeCount: Math.floor(Math.random() * 5) + 3,
-        },
+        
+        // 호환성을 위한 기본 값들
+        plantHealth: analysisData.plantHealth || Math.floor(Math.random() * 30 + 70),
+        growthRate: Math.floor(Math.random() * 10 + 5),
+        size: analysisData.size || Math.floor(Math.random() * 30 + 20),
+        height: analysisData.height || Math.floor(Math.random() * 30 + 20),
+        leafCount: analysisData.leafCount || Math.floor(Math.random() * 15 + 5),
+        leafSize: Math.floor(Math.random() * 5 + 3),
       }
 
       setAnalysisResult(mockResult)
@@ -720,7 +865,7 @@ export default function CropGrowthAnalysis() {
     }
   }
 
-  const saveAnalysis = () => {
+  const saveAnalysis = async () => {
     if (!analysisResult || !selectedPlantType) return
 
     const newAnalysis: SavedAnalysis = {
@@ -731,7 +876,18 @@ export default function CropGrowthAnalysis() {
       userId,
     }
 
-    setSavedAnalyses((prev) => [...prev, newAnalysis])
+    const updatedAnalyses = [...savedAnalyses, newAnalysis]
+    setSavedAnalyses(updatedAnalyses)
+    
+    // 로컬 스토리지에 저장
+    try {
+      await saveToStorage(uploadedImages, updatedAnalyses, cameras)
+      console.log("분석 결과가 로컬 스토리지에 저장되었습니다:", newAnalysis)
+    } catch (error) {
+      console.error("저장 중 오류 발생:", error)
+      alert("저장 중 오류가 발생했습니다. 다시 시도해주세요.")
+      return
+    }
     
     // 분석 결과를 화면에서 제거
     setAnalysisResult(null)
@@ -813,10 +969,10 @@ export default function CropGrowthAnalysis() {
           (!dataDateRange.from || analysisDate >= dataDateRange.from) &&
           (!dataDateRange.to || analysisDate <= dataDateRange.to)
         const healthMatch =
-          analysis.result.plantHealth >= advancedFilters.healthMin &&
-          analysis.result.plantHealth <= advancedFilters.healthMax
+          (analysis.result.plantHealth || 0) >= advancedFilters.healthMin &&
+          (analysis.result.plantHealth || 0) <= advancedFilters.healthMax
         const heightMatch =
-          analysis.result.height >= advancedFilters.heightMin && analysis.result.height <= advancedFilters.heightMax
+          (analysis.result.height || 0) >= advancedFilters.heightMin && (analysis.result.height || 0) <= advancedFilters.heightMax
 
         return plantTypeMatch && dateMatch && healthMatch && heightMatch
       })
@@ -844,10 +1000,10 @@ export default function CropGrowthAnalysis() {
 
       // 고급 필터
       const healthMatch =
-        analysis.result.plantHealth >= advancedFilters.healthMin &&
-        analysis.result.plantHealth <= advancedFilters.healthMax
+        (analysis.result.plantHealth || 0) >= advancedFilters.healthMin &&
+        (analysis.result.plantHealth || 0) <= advancedFilters.healthMax
       const heightMatch =
-        analysis.result.height >= advancedFilters.heightMin && analysis.result.height <= advancedFilters.heightMax
+        (analysis.result.height || 0) >= advancedFilters.heightMin && (analysis.result.height || 0) <= advancedFilters.heightMax
 
       return plantTypeMatch && dateMatch && healthMatch && heightMatch
     })
@@ -858,19 +1014,19 @@ export default function CropGrowthAnalysis() {
     const filteredData = getFilteredAnalyses()
     if (filteredData.length === 0) return null
 
-    const healthValues = filteredData.map((d) => d.result.plantHealth)
-    const heightValues = filteredData.map((d) => d.result.height)
-    const leafCountValues = filteredData.map((d) => d.result.leafCount)
+    const healthValues = filteredData.map((d) => d.result.plantHealth || 0).filter(h => h > 0)
+    const heightValues = filteredData.map((d) => d.result.height || 0).filter(h => h > 0)
+    const leafCountValues = filteredData.map((d) => d.result.leafCount || 0).filter(h => h > 0)
 
     return {
       count: filteredData.length,
-      avgHealth: Math.round(healthValues.reduce((a, b) => a + b, 0) / healthValues.length),
-      maxHealth: Math.max(...healthValues),
-      minHealth: Math.min(...healthValues),
-      avgHeight: Math.round(heightValues.reduce((a, b) => a + b, 0) / heightValues.length),
-      maxHeight: Math.max(...heightValues),
-      minHeight: Math.min(...heightValues),
-      avgLeafCount: Math.round(leafCountValues.reduce((a, b) => a + b, 0) / leafCountValues.length),
+      avgHealth: healthValues.length > 0 ? Math.round(healthValues.reduce((a, b) => a + b, 0) / healthValues.length) : 0,
+      maxHealth: healthValues.length > 0 ? Math.max(...healthValues) : 0,
+      minHealth: healthValues.length > 0 ? Math.min(...healthValues) : 0,
+      avgHeight: heightValues.length > 0 ? Math.round(heightValues.reduce((a, b) => a + b, 0) / heightValues.length) : 0,
+      maxHeight: heightValues.length > 0 ? Math.max(...heightValues) : 0,
+      minHeight: heightValues.length > 0 ? Math.min(...heightValues) : 0,
+      avgLeafCount: leafCountValues.length > 0 ? Math.round(leafCountValues.reduce((a, b) => a + b, 0) / leafCountValues.length) : 0,
     }
   }
 
@@ -1528,7 +1684,7 @@ export default function CropGrowthAnalysis() {
                             const analyses = getUserAnalyses().filter((a) => a.plantType === plant.id)
                             if (analyses.length === 0) return 0
                             return Math.round(
-                              analyses.reduce((sum, a) => sum + a.result.plantHealth, 0) / analyses.length,
+                                                             analyses.reduce((sum, a) => sum + (a.result.plantHealth || 0), 0) / analyses.length,
                             )
                           })(),
                         }))
@@ -1616,7 +1772,7 @@ export default function CropGrowthAnalysis() {
                             totalHealth:
                               getUserAnalyses().length > 0
                                 ? Math.round(
-                                    getUserAnalyses().reduce((sum, a) => sum + a.result.plantHealth, 0) /
+                                                                         getUserAnalyses().reduce((sum, a) => sum + (a.result.plantHealth || 0), 0) /
                                       getUserAnalyses().length,
                                   )
                                 : 0,
@@ -1791,7 +1947,7 @@ export default function CropGrowthAnalysis() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6 space-y-4">
-                <Select value={selectedModel} onValueChange={setSelectedModel}>
+                <Select value={selectedModel} onValueChange={handleModelChange}>
                   <SelectTrigger>
                     <SelectValue
                       placeholder={models.length > 0 ? "분석 모델을 선택하세요" : "사용 가능한 모델이 없습니다"}
@@ -1936,6 +2092,74 @@ export default function CropGrowthAnalysis() {
                   );
                 })()}
 
+                {/* 분석 항목 선택 (모델이 선택된 경우) */}
+                {selectedModel && models.length > 0 && (() => {
+                  const model = models.find((m) => m.id === selectedModel);
+                  if (!model || !model.analysisItems) return null;
+                  
+                  return (
+                    <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h5 className="font-medium text-yellow-800">분석 항목 선택</h5>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedAnalysisItems(model.analysisItems.map(item => item.id))}
+                            className="text-xs"
+                          >
+                            전체 선택
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedAnalysisItems([])}
+                            className="text-xs"
+                          >
+                            전체 해제
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-sm text-yellow-700">
+                        분석하고 싶은 항목들을 선택하세요. 선택한 항목들만 분석 결과에 포함됩니다.
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
+                        {model.analysisItems.map((item) => (
+                          <div key={item.id} className="flex items-start space-x-3 p-2 bg-white rounded border">
+                            <Checkbox
+                              id={`analysis-${item.id}`}
+                              checked={selectedAnalysisItems.includes(item.id)}
+                              onCheckedChange={() => toggleAnalysisItem(item.id)}
+                              className="mt-1"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <label
+                                htmlFor={`analysis-${item.id}`}
+                                className="block text-sm font-medium text-gray-700 cursor-pointer"
+                              >
+                                {item.name}
+                              </label>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="outline" className="text-xs">
+                                  {item.type}
+                                </Badge>
+                                {item.unit && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    {item.unit}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        선택된 항목: {selectedAnalysisItems.length}개 / 전체 {model.analysisItems.length}개
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* 모델이 없을 때 안내 메시지 */}
                 {models.length === 0 && (
                   <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 text-center">
@@ -2067,50 +2291,76 @@ export default function CropGrowthAnalysis() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6 space-y-4">
-                  {analysisResult.comparedImages && (
+                  {/* 분석 정보 */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="p-3 bg-green-50 rounded-lg border border-green-200">
                       <p className="text-sm text-green-800">
-                        📊 {analysisResult.comparedImages.length}개 이미지를 비교 분석했습니다
+                        🤖 모델: {models.find(m => m.id === analysisResult.modelId)?.name || "알 수 없음"}
                       </p>
                     </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center p-4 bg-green-50 rounded-lg">
-                      <div className="text-2xl font-bold text-green-700">{analysisResult.plantHealth}%</div>
-                      <div className="text-sm text-green-600">식물 건강도</div>
-                    </div>
-                    <div className="text-center p-4 bg-blue-50 rounded-lg">
-                      <div className="text-2xl font-bold text-blue-700">{analysisResult.growthRate}%</div>
-                      <div className="text-sm text-blue-600">성장 속도</div>
-                    </div>
+                    {analysisResult.comparedImages && (
+                      <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                        <p className="text-sm text-blue-800">
+                          📊 {analysisResult.comparedImages.length}개 이미지 분석
+                        </p>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <div className="text-center p-2 bg-gray-50 rounded">
-                      <div className="font-bold text-gray-700">{analysisResult.height}cm</div>
-                      <div className="text-gray-500">키</div>
-                    </div>
-                    <div className="text-center p-2 bg-gray-50 rounded">
-                      <div className="font-bold text-gray-700">{analysisResult.leafCount}개</div>
-                      <div className="text-gray-500">잎 개수</div>
-                    </div>
-                    <div className="text-center p-2 bg-gray-50 rounded">
-                      <div className="font-bold text-gray-700">{analysisResult.leafSize}cm</div>
-                      <div className="text-gray-500">잎 크기</div>
-                    </div>
-                  </div>
+                  {/* 분석 항목별 결과 표시 */}
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-gray-800 flex items-center gap-2">
+                      <BarChart3 className="h-4 w-4" />
+                      분석 결과 ({analysisResult.selectedAnalysisItems.length}개 항목)
+                    </h4>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {analysisResult.selectedAnalysisItems.map((itemId) => {
+                        const selectedModel = models.find(m => m.id === analysisResult.modelId)
+                        const item = selectedModel?.analysisItems.find(ai => ai.id === itemId)
+                        const value = analysisResult.analysisData[itemId]
+                        
+                        if (!item || value === undefined) return null
 
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm font-medium">전체 크기:</span>
-                      <span className="text-sm">{analysisResult.size}cm</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm font-medium">상태:</span>
-                      <Badge variant="secondary" className="bg-green-100 text-green-800">
-                        {analysisResult.condition}
-                      </Badge>
+                        return (
+                          <div key={itemId} className="p-4 bg-gray-50 rounded-lg border">
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <h5 className="font-medium text-gray-700">{item.name}</h5>
+                                <Badge variant="outline" className="text-xs">
+                                  {item.type}
+                                </Badge>
+                              </div>
+                              
+                              <div className="text-lg font-bold text-gray-900">
+                                {item.type === "number" ? (
+                                  <>
+                                    {typeof value === 'number' ? value.toFixed(1) : value}
+                                    {item.unit && <span className="text-sm text-gray-500 ml-1">{item.unit}</span>}
+                                  </>
+                                ) : item.type === "string" ? (
+                                  <span className="text-base">{value}</span>
+                                ) : item.type === "object" ? (
+                                  <div className="text-sm space-y-1">
+                                    {typeof value === 'object' && value !== null ? (
+                                      Object.entries(value).map(([key, val]) => (
+                                        <div key={key} className="flex justify-between">
+                                          <span className="text-gray-600">{key}:</span>
+                                          <span className="font-medium">{String(val)}</span>
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <span>{String(value)}</span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span>{String(value)}</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
 
@@ -2133,402 +2383,7 @@ export default function CropGrowthAnalysis() {
           </div>
         </div>
 
-        {/* 저장된 데이터 및 분석 영역 */}
-        {getUserAnalyses().length > 0 && (
-          <Card className="border-indigo-200">
-            <CardHeader className="bg-indigo-50">
-              <CardTitle className="flex items-center gap-2 text-indigo-800">
-                <Database className="h-5 w-5" />
-                성장 데이터 분석
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-6">
-              <Tabs defaultValue="table" className="space-y-4">
-                <TabsList>
-                  <TabsTrigger value="table">데이터 표</TabsTrigger>
-                  <TabsTrigger value="charts">성장 차트</TabsTrigger>
-                </TabsList>
 
-                <TabsContent value="table" className="space-y-4">
-                  <div className="space-y-4">
-                    <div className="flex flex-wrap gap-4 items-center justify-between">
-                      <div className="flex gap-4 items-center">
-                        <Select value={selectedDataPlantType} onValueChange={setSelectedDataPlantType}>
-                          <SelectTrigger className="w-48">
-                            <SelectValue placeholder="식물 종류별 필터" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">전체 ({getUserAnalyses().length}건)</SelectItem>
-                            {plantTypes
-                              .filter((plant) => getUserAnalyses().some((analysis) => analysis.plantType === plant.id))
-                              .map((plant) => {
-                                const count = getUserAnalyses().filter(
-                                  (analysis) => analysis.plantType === plant.id,
-                                ).length
-                                return (
-                                  <SelectItem key={plant.id} value={plant.id}>
-                                    {plant.name} ({count}건)
-                                  </SelectItem>
-                                )
-                              })}
-                          </SelectContent>
-                        </Select>
-
-                        {/* 날짜 범위 선택 */}
-                        <div className="w-full max-w-sm">
-                          <Label className="text-sm font-medium mb-2 block">날짜 범위 필터</Label>
-                          <DateRangePicker
-                            dateRange={dataDateRange}
-                            onDateRangeChange={setDataDateRange}
-                            dataPoints={getDataPoints()}
-                            plantTypes={plantTypes}
-                          />
-                        </div>
-
-                        {/* 고급 필터 */}
-                        <div className="space-y-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                            className="flex items-center gap-2"
-                          >
-                            <BarChart3 className="h-4 w-4" />
-                            고급 필터 {showAdvancedFilters ? "숨기기" : "보기"}
-                          </Button>
-
-                          {showAdvancedFilters && (
-                            <div className="border rounded-lg p-4 bg-gray-50 space-y-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                  <Label className="text-sm font-medium">건강도 범위 (%)</Label>
-                                  <div className="flex gap-2 items-center">
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      max="100"
-                                      value={advancedFilters.healthMin}
-                                      onChange={(e) =>
-                                        setAdvancedFilters((prev) => ({
-                                          ...prev,
-                                          healthMin: Number.parseInt(e.target.value) || 0,
-                                        }))
-                                      }
-                                      className="w-20"
-                                    />
-                                    <span className="text-sm text-gray-500">~</span>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      max="100"
-                                      value={advancedFilters.healthMax}
-                                      onChange={(e) =>
-                                        setAdvancedFilters((prev) => ({
-                                          ...prev,
-                                          healthMax: Number.parseInt(e.target.value) || 100,
-                                        }))
-                                      }
-                                      className="w-20"
-                                    />
-                                  </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                  <Label className="text-sm font-medium">키 범위 (cm)</Label>
-                                  <div className="flex gap-2 items-center">
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      value={advancedFilters.heightMin}
-                                      onChange={(e) =>
-                                        setAdvancedFilters((prev) => ({
-                                          ...prev,
-                                          heightMin: Number.parseInt(e.target.value) || 0,
-                                        }))
-                                      }
-                                      className="w-20"
-                                    />
-                                    <span className="text-sm text-gray-500">~</span>
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      value={advancedFilters.heightMax}
-                                      onChange={(e) =>
-                                        setAdvancedFilters((prev) => ({
-                                          ...prev,
-                                          heightMax: Number.parseInt(e.target.value) || 100,
-                                        }))
-                                      }
-                                      className="w-20"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() =>
-                                    setAdvancedFilters({
-                                      healthMin: 0,
-                                      healthMax: 100,
-                                      heightMin: 0,
-                                      heightMax: 100,
-                                    })
-                                  }
-                                >
-                                  필터 초기화
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* 데이터 요약 정보 */}
-                      <div className="text-sm text-gray-600">총 {getFilteredAnalyses().length}건의 분석 데이터</div>
-                    </div>
-
-                    {/* 데이터 통계 정보 */}
-                    {(() => {
-                      const stats = getDataStatistics()
-                      return (
-                        stats && (
-                          <div className="border rounded-lg p-4 bg-blue-50 space-y-3">
-                            <h4 className="text-sm font-medium text-blue-800">데이터 통계</h4>
-                            <div className="grid grid-cols-3 gap-4 text-sm">
-                              <div className="space-y-1">
-                                <div className="text-blue-600 font-medium">건강도</div>
-                                <div>평균: {stats.avgHealth}%</div>
-                                <div>
-                                  범위: {stats.minHealth}% ~ {stats.maxHealth}%
-                                </div>
-                              </div>
-                              <div className="space-y-1">
-                                <div className="text-blue-600 font-medium">키</div>
-                                <div>평균: {stats.avgHeight}cm</div>
-                                <div>
-                                  범위: {stats.minHeight}cm ~ {stats.maxHeight}cm
-                                </div>
-                              </div>
-                              <div className="space-y-1">
-                                <div className="text-blue-600 font-medium">기타</div>
-                                <div>데이터 수: {stats.count}건</div>
-                                <div>평균 잎 개수: {stats.avgLeafCount}개</div>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      )
-                    })()}
-
-                    {/* 선택 및 내보내기 컨트롤 */}
-                    <div className="flex justify-between items-center">
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={selectAllDataRows}
-                          disabled={getFilteredAnalyses().length === 0}
-                        >
-                          전체 선택
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={deselectAllDataRows}
-                          disabled={selectedDataRows.length === 0}
-                        >
-                          선택 해제
-                        </Button>
-                      </div>
-
-                      {selectedDataRows.length > 0 && (
-                        <div className="flex gap-2 items-center">
-                          <span className="text-sm text-gray-600">{selectedDataRows.length}개 선택됨</span>
-                          <Button onClick={exportToExcel} size="sm" className="bg-green-600 hover:bg-green-700">
-                            <Database className="h-4 w-4 mr-2" />
-                            엑셀로 내보내기
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="border rounded-lg overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-12">
-                              <input
-                                type="checkbox"
-                                checked={
-                                  getFilteredAnalyses().length > 0 &&
-                                  selectedDataRows.length === getFilteredAnalyses().length
-                                }
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    selectAllDataRows()
-                                  } else {
-                                    deselectAllDataRows()
-                                  }
-                                }}
-                                className="w-4 h-4"
-                              />
-                            </TableHead>
-                            <TableHead>날짜</TableHead>
-                            <TableHead>식물 종류</TableHead>
-                            <TableHead>건강도</TableHead>
-                            <TableHead>키 (cm)</TableHead>
-                            <TableHead>잎 개수</TableHead>
-                            <TableHead>잎 크기 (cm)</TableHead>
-                            <TableHead>상태</TableHead>
-                            <TableHead>액션</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {getFilteredAnalyses().map((analysis) => (
-                            <TableRow key={analysis.id}>
-                              <TableCell>
-                                <input
-                                  type="checkbox"
-                                  checked={selectedDataRows.includes(analysis.id)}
-                                  onChange={() => toggleDataRowSelection(analysis.id)}
-                                  className="w-4 h-4"
-                                />
-                              </TableCell>
-                              <TableCell>{new Date(analysis.date).toLocaleDateString("ko-KR")}</TableCell>
-                              <TableCell>
-                                {plantTypes.find((p) => p.id === analysis.plantType)?.name || analysis.plantType}
-                              </TableCell>
-                              <TableCell>{analysis.result.plantHealth}%</TableCell>
-                              <TableCell>{analysis.result.height}</TableCell>
-                              <TableCell>{analysis.result.leafCount}</TableCell>
-                              <TableCell>{analysis.result.leafSize}</TableCell>
-                              <TableCell>
-                                <Badge variant="secondary" className="bg-green-100 text-green-800">
-                                  {analysis.result.condition}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    if (confirm("이 분석 데이터를 삭제하시겠습니까?")) {
-                                      setSavedAnalyses((prev) => prev.filter((item) => item.id !== analysis.id))
-                                      setSelectedDataRows((prev) => prev.filter((id) => id !== analysis.id))
-                                    }
-                                  }}
-                                  className="text-red-500 hover:text-red-700"
-                                >
-                                  삭제
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-
-                    {getFilteredAnalyses().length === 0 && (
-                      <div className="text-center py-8 text-gray-500">
-                        <p>선택한 조건에 맞는 데이터가 없습니다.</p>
-                      </div>
-                    )}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="charts" className="space-y-4">
-                  <div className="space-y-4">
-                    <Select value={selectedDataPlantType} onValueChange={setSelectedDataPlantType}>
-                      <SelectTrigger className="w-48">
-                        <SelectValue placeholder="식물 종류 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {plantTypes
-                          .filter((plant) => getUserAnalyses().some((analysis) => analysis.plantType === plant.id))
-                          .map((plant) => {
-                            const count = getUserAnalyses().filter((analysis) => analysis.plantType === plant.id).length
-                            return (
-                              <SelectItem key={plant.id} value={plant.id}>
-                                {plant.name} ({count}건)
-                              </SelectItem>
-                            )
-                          })}
-                      </SelectContent>
-                    </Select>
-
-                    {/* 차트용 날짜 범위 선택 */}
-                    <div className="w-full max-w-sm">
-                      <Label className="text-sm font-medium mb-2 block">날짜 범위 필터</Label>
-                      <DateRangePicker
-                        dateRange={dataDateRange}
-                        onDateRangeChange={setDataDateRange}
-                        dataPoints={getDataPoints()}
-                        plantTypes={plantTypes}
-                      />
-                    </div>
-
-                    {selectedDataPlantType && selectedDataPlantType !== "all" && (
-                      <div className="space-y-4">
-                        {(() => {
-                          const plant = plantTypes.find((p) => p.id === selectedDataPlantType)
-                          const data = getFilteredData(selectedDataPlantType)
-                          return (
-                            <div className="space-y-4">
-                              <div className="flex justify-between items-center">
-                                <h3 className="text-lg font-semibold text-gray-800">{plant?.name} 성장 분석</h3>
-                                <div className="text-sm text-gray-600">
-                                  총 {data.length}회 분석 •
-                                  {data.length > 1 && ` 기간: ${data[0]?.date} ~ ${data[data.length - 1]?.date}`}
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <GrowthChart
-                                  data={data}
-                                  type="line"
-                                  dataKey="height"
-                                  title="키 성장 추이"
-                                  color="#10b981"
-                                  yAxisLabel="키 (cm)"
-                                />
-                                <GrowthChart
-                                  data={data}
-                                  type="bar"
-                                  dataKey="leafCount"
-                                  title="잎 개수 변화"
-                                  color="#3b82f6"
-                                  yAxisLabel="잎 개수"
-                                />
-                                <GrowthChart
-                                  data={data}
-                                  type="line"
-                                  dataKey="leafSize"
-                                  title="잎 크기 변화"
-                                  color="#f59e0b"
-                                  yAxisLabel="잎 크기 (cm)"
-                                />
-                                <GrowthChart
-                                  data={data}
-                                  type="line"
-                                  dataKey="health"
-                                  title="건강도 추이"
-                                  color="#ef4444"
-                                  yAxisLabel="건강도 (%)"
-                                />
-                              </div>
-                            </div>
-                          )
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        )}
       </div>
 
       {/* 이미지 편집 모달 */}

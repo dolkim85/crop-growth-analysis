@@ -1,17 +1,33 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ArrowLeft, ImageIcon, Download, Search, Calendar, Clock, Grid, List } from "lucide-react"
+import { ArrowLeft, ImageIcon, Download, Search, Calendar, Clock, Grid, List, Eye, X } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useAuth } from "@/components/auth-provider"
 import { Navbar } from "@/components/navbar"
+
+// 로컬 스토리지 키
+const STORAGE_KEYS = {
+  UPLOADED_IMAGES: 'crop-analysis-uploaded-images',
+  SAVED_ANALYSES: 'crop-analysis-saved-analyses',
+  CAMERAS: 'crop-analysis-cameras'
+}
+
+// 인터페이스 정의
+interface UploadedImage {
+  id: string
+  file: File
+  url: string
+  timestamp: Date
+  userId: string
+}
 
 // 임시 이미지 데이터
 const mockImages = [
@@ -64,36 +80,67 @@ export default function ImagesPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [selectedImages, setSelectedImages] = useState<string[]>([])
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [imageToView, setImageToView] = useState<UploadedImage | null>(null)
 
-  // 사용자별 이미지 필터링
-  const userImages = mockImages.filter((image) => image.userId === user?.id)
+  // 로컬 스토리지에서 이미지 데이터 로드
+  useEffect(() => {
+    const loadImages = async () => {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEYS.UPLOADED_IMAGES)
+        if (stored) {
+          const parsedImages: UploadedImage[] = JSON.parse(stored)
+          setUploadedImages(parsedImages)
+          console.log("업로드된 이미지 로드됨:", parsedImages)
+        } else {
+          console.log("저장된 이미지가 없습니다")
+        }
+      } catch (error) {
+        console.error("이미지 로드 중 오류:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadImages()
+  }, [])
+
+  // 사용자별 이미지 필터링 (실제 업로드된 이미지 + 더미 데이터)
+  const userImages = [
+    ...uploadedImages.filter((image) => image.userId === user?.id),
+    ...mockImages.filter((image) => image.userId === user?.id)
+  ]
 
   // 필터링 및 정렬
   const filteredImages = userImages
     .filter((image) => {
-      const searchMatch =
-        image.fileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        image.tags.some((tag) => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+      const fileName = image.fileName || image.file?.name || "unnamed"
+      const searchMatch = fileName.toLowerCase().includes(searchTerm.toLowerCase())
       return searchMatch
     })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case "date-desc":
-          return b.uploadDate.getTime() - a.uploadDate.getTime()
-        case "date-asc":
-          return a.uploadDate.getTime() - b.uploadDate.getTime()
-        case "name-asc":
-          return a.fileName.localeCompare(b.fileName)
-        case "name-desc":
-          return b.fileName.localeCompare(a.fileName)
-        case "size-desc":
-          return Number.parseFloat(b.size) - Number.parseFloat(a.size)
-        case "size-asc":
-          return Number.parseFloat(a.size) - Number.parseFloat(b.size)
-        default:
-          return 0
-      }
-    })
+          .sort((a, b) => {
+        switch (sortBy) {
+          case "date-desc":
+            const dateA = a.uploadDate || a.timestamp || new Date()
+            const dateB = b.uploadDate || b.timestamp || new Date()
+            return new Date(dateB).getTime() - new Date(dateA).getTime()
+          case "date-asc":
+            const dateA2 = a.uploadDate || a.timestamp || new Date()
+            const dateB2 = b.uploadDate || b.timestamp || new Date()
+            return new Date(dateA2).getTime() - new Date(dateB2).getTime()
+          case "name-asc":
+            const nameA = a.fileName || a.file?.name || "unnamed"
+            const nameB = b.fileName || b.file?.name || "unnamed"
+            return nameA.localeCompare(nameB)
+          case "name-desc":
+            const nameA2 = a.fileName || a.file?.name || "unnamed"
+            const nameB2 = b.fileName || b.file?.name || "unnamed"
+            return nameB2.localeCompare(nameA2)
+          default:
+            return 0
+        }
+      })
 
   const toggleImageSelection = (id: string) => {
     setSelectedImages((prev) => (prev.includes(id) ? prev.filter((imgId) => imgId !== id) : [...prev, id]))
@@ -161,7 +208,14 @@ export default function ImagesPage() {
           <Card>
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-green-700">
-                {userImages.reduce((sum, img) => sum + Number.parseFloat(img.size), 0).toFixed(1)} MB
+                {userImages.reduce((sum, img) => {
+                  if (img.size) {
+                    return sum + Number.parseFloat(img.size)
+                  } else if (img.file?.size) {
+                    return sum + (img.file.size / 1024 / 1024)
+                  }
+                  return sum
+                }, 0).toFixed(1)} MB
               </div>
               <div className="text-sm text-green-600">총 용량</div>
             </CardContent>
@@ -169,7 +223,9 @@ export default function ImagesPage() {
           <Card>
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-purple-700">
-                {userImages.length > 0 ? formatDate(userImages[0].uploadDate).date : "-"}
+                {userImages.length > 0 
+                  ? formatDate(userImages[0].uploadDate || userImages[0].timestamp || new Date()).date 
+                  : "-"}
               </div>
               <div className="text-sm text-purple-600">최근 업로드</div>
             </CardContent>
@@ -177,9 +233,9 @@ export default function ImagesPage() {
           <Card>
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-orange-700">
-                {new Set(userImages.flatMap((img) => img.tags)).size}
+                {isLoading ? "..." : userImages.length}
               </div>
-              <div className="text-sm text-orange-600">태그 종류</div>
+              <div className="text-sm text-orange-600">실제 이미지</div>
             </CardContent>
           </Card>
         </div>
@@ -275,7 +331,14 @@ export default function ImagesPage() {
             <CardTitle>이미지 목록 ({filteredImages.length}개)</CardTitle>
           </CardHeader>
           <CardContent>
-            {viewMode === "grid" ? (
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center space-y-4">
+                  <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
+                  <p className="text-gray-600">이미지를 불러오는 중...</p>
+                </div>
+              </div>
+            ) : viewMode === "grid" ? (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
                 {filteredImages.map((image) => {
                   const dateInfo = formatDate(image.uploadDate)
@@ -284,7 +347,7 @@ export default function ImagesPage() {
                       <div className="relative">
                         <Image
                           src={image.url || "/placeholder.svg"}
-                          alt={image.fileName}
+                          alt={image.fileName || image.file?.name || "이미지"}
                           width={200}
                           height={200}
                           className={`w-full h-32 object-cover rounded-lg border-2 transition-all cursor-pointer ${
@@ -292,7 +355,7 @@ export default function ImagesPage() {
                               ? "border-blue-500 ring-2 ring-blue-200"
                               : "border-gray-200 hover:border-blue-300"
                           }`}
-                          onClick={() => setSelectedImage(image.id)}
+                          onClick={() => setImageToView(image)}
                         />
 
                         {/* 선택 체크박스 */}
@@ -306,19 +369,27 @@ export default function ImagesPage() {
                           />
                         </div>
 
-                        {/* 파일 정보 오버레이 */}
-                        <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 text-white p-2 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="text-xs truncate">{image.fileName}</div>
-                          <div className="text-xs text-gray-300">{image.size}</div>
+                        {/* 보기 버튼 */}
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-8 w-8 p-0 bg-white/90 hover:bg-white"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setImageToView(image)
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
                         </div>
 
-                        {/* 태그 */}
-                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {image.tags.slice(0, 2).map((tag, index) => (
-                            <Badge key={index} variant="secondary" className="text-xs mb-1 block bg-white/90">
-                              {tag}
-                            </Badge>
-                          ))}
+                        {/* 파일 정보 오버레이 */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 text-white p-2 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="text-xs truncate">{image.fileName || image.file?.name || "unnamed"}</div>
+                          <div className="text-xs text-gray-300">
+                            {image.size || `${Math.round((image.file?.size || 0) / 1024 / 1024 * 10) / 10} MB`}
+                          </div>
                         </div>
                       </div>
 
@@ -351,24 +422,30 @@ export default function ImagesPage() {
 
                       <Image
                         src={image.url || "/placeholder.svg"}
-                        alt={image.fileName}
+                        alt={image.fileName || image.file?.name || "이미지"}
                         width={60}
                         height={60}
                         className="w-15 h-15 object-cover rounded border cursor-pointer"
-                        onClick={() => setSelectedImage(image.id)}
+                        onClick={() => setImageToView(image)}
                       />
 
                       <div className="flex-1">
-                        <div className="font-medium text-gray-900">{image.fileName}</div>
+                        <div className="font-medium text-gray-900">
+                          {image.fileName || image.file?.name || "unnamed"}
+                        </div>
                         <div className="text-sm text-gray-500">
-                          {image.dimensions} • {image.size}
+                          {image.dimensions || "알 수 없음"} • {image.size || `${Math.round((image.file?.size || 0) / 1024 / 1024 * 10) / 10} MB`}
                         </div>
                         <div className="flex gap-1 mt-1">
-                          {image.tags.map((tag, index) => (
+                          {image.tags?.map((tag, index) => (
                             <Badge key={index} variant="outline" className="text-xs">
                               {tag}
                             </Badge>
-                          ))}
+                          )) || (
+                            <Badge variant="outline" className="text-xs">
+                              {image.file?.type || "image"}
+                            </Badge>
+                          )}
                         </div>
                       </div>
 
@@ -397,63 +474,78 @@ export default function ImagesPage() {
           </CardContent>
         </Card>
 
-        {/* 이미지 상세 모달 */}
-        {selectedImage && (
+        {/* 이미지 뷰어 모달 */}
+        {imageToView && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
-            onClick={() => setSelectedImage(null)}
+            className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50"
+            onClick={() => setImageToView(null)}
           >
-            <div className="max-w-4xl max-h-[90vh] p-4" onClick={(e) => e.stopPropagation()}>
-              {(() => {
-                const image = filteredImages.find((img) => img.id === selectedImage)
-                if (!image) return null
-                const dateInfo = formatDate(image.uploadDate)
+            <div className="max-w-[95vw] max-h-[95vh] relative" onClick={(e) => e.stopPropagation()}>
+              {/* 닫기 버튼 */}
+              <Button
+                variant="secondary"
+                size="sm"
+                className="absolute top-4 right-4 z-10 bg-white/90 hover:bg-white"
+                onClick={() => setImageToView(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
 
-                return (
-                  <div className="bg-white rounded-lg overflow-hidden">
-                    <div className="p-4 border-b">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="text-lg font-semibold">{image.fileName}</h3>
-                          <p className="text-sm text-gray-500">
-                            {dateInfo.date} {dateInfo.time}
-                          </p>
-                        </div>
-                        <Button variant="outline" onClick={() => setSelectedImage(null)}>
-                          닫기
-                        </Button>
-                      </div>
+              {/* 이미지 */}
+              <div className="bg-white rounded-lg overflow-hidden shadow-2xl">
+                <div className="p-4 border-b bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold">
+                        {imageToView.fileName || imageToView.file?.name || "이미지"}
+                      </h3>
+                      <p className="text-sm text-gray-500">
+                        {formatDate(imageToView.uploadDate || imageToView.timestamp || new Date()).date}{" "}
+                        {formatDate(imageToView.uploadDate || imageToView.timestamp || new Date()).time}
+                      </p>
                     </div>
-                    <div className="p-4">
-                      <Image
-                        src={image.url || "/placeholder.svg"}
-                        alt={image.fileName}
-                        width={800}
-                        height={600}
-                        className="w-full h-auto max-h-96 object-contain rounded"
-                      />
-                      <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="font-medium">크기:</span> {image.size}
-                        </div>
-                        <div>
-                          <span className="font-medium">해상도:</span> {image.dimensions}
-                        </div>
-                        <div className="col-span-2">
-                          <span className="font-medium">태그:</span>
-                          <div className="flex gap-1 mt-1">
-                            {image.tags.map((tag, index) => (
-                              <Badge key={index} variant="outline" className="text-xs">
-                                {tag}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
+                    <Badge variant="outline" className="text-xs">
+                      {imageToView.size || `${Math.round((imageToView.file?.size || 0) / 1024 / 1024 * 10) / 10} MB`}
+                    </Badge>
+                  </div>
+                </div>
+                
+                <div className="p-4 bg-gray-100">
+                  <Image
+                    src={imageToView.url || "/placeholder.svg"}
+                    alt={imageToView.fileName || imageToView.file?.name || "이미지"}
+                    width={1200}
+                    height={800}
+                    className="w-full h-auto max-h-[70vh] object-contain rounded bg-white"
+                  />
+                </div>
+
+                <div className="p-4 bg-gray-50">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="font-medium text-gray-700">파일명:</span>
+                      <span className="ml-2">{imageToView.fileName || imageToView.file?.name || "unnamed"}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">크기:</span>
+                      <span className="ml-2">
+                        {imageToView.size || `${Math.round((imageToView.file?.size || 0) / 1024 / 1024 * 10) / 10} MB`}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">업로드 시간:</span>
+                      <span className="ml-2">
+                        {formatDate(imageToView.uploadDate || imageToView.timestamp || new Date()).date}{" "}
+                        {formatDate(imageToView.uploadDate || imageToView.timestamp || new Date()).time}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-700">타입:</span>
+                      <span className="ml-2">{imageToView.file?.type || "image/jpeg"}</span>
                     </div>
                   </div>
-                )
-              })()}
+                </div>
+              </div>
             </div>
           </div>
         )}
