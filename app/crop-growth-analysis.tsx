@@ -1315,13 +1315,14 @@ export default function CropGrowthAnalysis() {
     return plantStats
   }
 
-  // 환경 데이터 업데이트 함수
-  const updateEnvironmentData = (field: keyof EnvironmentData, value: number) => {
-    setEnvironmentData(prev => ({
-      ...prev,
-      [field]: value
-    }))
-  }
+  // 환경 데이터는 센서로부터 실시간으로 읽어옴 (읽기 전용)
+  // 실제 구현에서는 센서 API나 IoT 플랫폼에서 데이터를 가져와야 함
+  // const updateEnvironmentData = (field: keyof EnvironmentData, value: number) => {
+  //   setEnvironmentData(prev => ({
+  //     ...prev,
+  //     [field]: value
+  //   }))
+  // }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 p-6">
@@ -1340,176 +1341,163 @@ export default function CropGrowthAnalysis() {
           )}
         </div>
 
+        {/* 스마트팜 환경 데이터 섹션 - 전체 너비 */}
+        <Card className="border-purple-200 mb-6">
+          <CardHeader className="bg-purple-50">
+            <CardTitle className="flex items-center gap-2 text-purple-800">
+              <TrendingUp className="h-5 w-5" />
+              스마트팜 환경 제어 데이터 (센서 실시간 읽기)
+            </CardTitle>
+            <p className="text-sm text-purple-600">센서로부터 실시간으로 수집된 환경 데이터입니다</p>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
+              {/* 온도 관련 */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">내부온도 (°C)</Label>
+                <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
+                  {environmentData.innerTemperature}
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">외부온도 (°C)</Label>
+                <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
+                  {environmentData.outerTemperature}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">근권온도 (°C)</Label>
+                <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
+                  {environmentData.rootZoneTemperature}
+                </div>
+              </div>
+
+              {/* 습도 */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">내부습도 (%)</Label>
+                <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
+                  {environmentData.innerHumidity}
+                </div>
+              </div>
+
+              {/* 일사량 */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">일사량 (W/m²)</Label>
+                <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
+                  {environmentData.solarRadiation}
+                </div>
+              </div>
+
+              {/* 수질 관련 */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">PH</Label>
+                <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
+                  {environmentData.ph}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">EC (dS/m)</Label>
+                <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
+                  {environmentData.ec}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">DO (mg/L)</Label>
+                <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
+                  {environmentData.dissolvedOxygen}
+                </div>
+              </div>
+            </div>
+
+            {/* 환경 상태 표시 */}
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+              <div className="grid grid-cols-4 md:grid-cols-8 gap-2 text-xs">
+                <div className={`flex items-center gap-1 ${
+                  environmentData.innerTemperature >= 18 && environmentData.innerTemperature <= 32 
+                    ? 'text-green-600' : 'text-orange-600'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full ${
+                    environmentData.innerTemperature >= 18 && environmentData.innerTemperature <= 32 
+                      ? 'bg-green-500' : 'bg-orange-500'
+                  }`} />
+                  온도: {environmentData.innerTemperature >= 18 && environmentData.innerTemperature <= 32 ? '적정' : '주의'}
+                </div>
+                <div className={`flex items-center gap-1 ${
+                  environmentData.innerHumidity >= 40 && environmentData.innerHumidity <= 80 
+                    ? 'text-green-600' : 'text-orange-600'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full ${
+                    environmentData.innerHumidity >= 40 && environmentData.innerHumidity <= 80 
+                      ? 'bg-green-500' : 'bg-orange-500'
+                  }`} />
+                  습도: {environmentData.innerHumidity >= 40 && environmentData.innerHumidity <= 80 ? '적정' : '주의'}
+                </div>
+                <div className={`flex items-center gap-1 ${
+                  environmentData.ph >= 6.0 && environmentData.ph <= 7.5 
+                    ? 'text-green-600' : 'text-orange-600'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full ${
+                    environmentData.ph >= 6.0 && environmentData.ph <= 7.5 
+                      ? 'bg-green-500' : 'bg-orange-500'
+                  }`} />
+                  PH: {environmentData.ph >= 6.0 && environmentData.ph <= 7.5 ? '적정' : '주의'}
+                </div>
+                <div className={`flex items-center gap-1 ${
+                  environmentData.ec >= 1.0 && environmentData.ec <= 3.0 
+                    ? 'text-green-600' : 'text-orange-600'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full ${
+                    environmentData.ec >= 1.0 && environmentData.ec <= 3.0 
+                      ? 'bg-green-500' : 'bg-orange-500'
+                  }`} />
+                  EC: {environmentData.ec >= 1.0 && environmentData.ec <= 3.0 ? '적정' : '주의'}
+                </div>
+                <div className={`flex items-center gap-1 ${
+                  environmentData.rootZoneTemperature >= 18 && environmentData.rootZoneTemperature <= 25 
+                    ? 'text-green-600' : 'text-orange-600'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full ${
+                    environmentData.rootZoneTemperature >= 18 && environmentData.rootZoneTemperature <= 25 
+                      ? 'bg-green-500' : 'bg-orange-500'
+                  }`} />
+                  근권: {environmentData.rootZoneTemperature >= 18 && environmentData.rootZoneTemperature <= 25 ? '적정' : '주의'}
+                </div>
+                <div className={`flex items-center gap-1 ${
+                  environmentData.solarRadiation >= 200 && environmentData.solarRadiation <= 800 
+                    ? 'text-green-600' : 'text-orange-600'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full ${
+                    environmentData.solarRadiation >= 200 && environmentData.solarRadiation <= 800 
+                      ? 'bg-green-500' : 'bg-orange-500'
+                  }`} />
+                  일사량: {environmentData.solarRadiation >= 200 && environmentData.solarRadiation <= 800 ? '적정' : '주의'}
+                </div>
+                <div className={`flex items-center gap-1 ${
+                  environmentData.dissolvedOxygen >= 5.0 && environmentData.dissolvedOxygen <= 12.0 
+                    ? 'text-green-600' : 'text-orange-600'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full ${
+                    environmentData.dissolvedOxygen >= 5.0 && environmentData.dissolvedOxygen <= 12.0 
+                      ? 'bg-green-500' : 'bg-orange-500'
+                  }`} />
+                  DO: {environmentData.dissolvedOxygen >= 5.0 && environmentData.dissolvedOxygen <= 12.0 ? '적정' : '주의'}
+                </div>
+                <div className="flex items-center gap-1 text-blue-600">
+                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                  센서 연결: 정상
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* 왼쪽 패널 */}
           <div className="space-y-6">
-            {/* 스마트팜 환경 데이터 섹션 */}
-            <Card className="border-purple-200">
-              <CardHeader className="bg-purple-50">
-                <CardTitle className="flex items-center gap-2 text-purple-800">
-                  <TrendingUp className="h-5 w-5" />
-                  스마트팜 환경 제어 데이터
-                </CardTitle>
-                <p className="text-sm text-purple-600">실시간 환경 데이터를 입력하여 더 정확한 분석을 받으세요</p>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {/* 온도 관련 */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">내부온도 (°C)</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={environmentData.innerTemperature}
-                      onChange={(e) => updateEnvironmentData('innerTemperature', parseFloat(e.target.value) || 0)}
-                      className="text-center"
-                      min="0"
-                      max="50"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">외부온도 (°C)</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={environmentData.outerTemperature}
-                      onChange={(e) => updateEnvironmentData('outerTemperature', parseFloat(e.target.value) || 0)}
-                      className="text-center"
-                      min="-20"
-                      max="50"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">근권온도 (°C)</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={environmentData.rootZoneTemperature}
-                      onChange={(e) => updateEnvironmentData('rootZoneTemperature', parseFloat(e.target.value) || 0)}
-                      className="text-center"
-                      min="0"
-                      max="40"
-                    />
-                  </div>
-
-                  {/* 습도 */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">내부습도 (%)</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={environmentData.innerHumidity}
-                      onChange={(e) => updateEnvironmentData('innerHumidity', parseFloat(e.target.value) || 0)}
-                      className="text-center"
-                      min="0"
-                      max="100"
-                    />
-                  </div>
-
-                  {/* 일사량 */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">일사량 (W/m²)</Label>
-                    <Input
-                      type="number"
-                      step="1"
-                      value={environmentData.solarRadiation}
-                      onChange={(e) => updateEnvironmentData('solarRadiation', parseFloat(e.target.value) || 0)}
-                      className="text-center"
-                      min="0"
-                      max="1200"
-                    />
-                  </div>
-
-                  {/* 수질 관련 */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">PH</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={environmentData.ph}
-                      onChange={(e) => updateEnvironmentData('ph', parseFloat(e.target.value) || 0)}
-                      className="text-center"
-                      min="0"
-                      max="14"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">EC (dS/m)</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={environmentData.ec}
-                      onChange={(e) => updateEnvironmentData('ec', parseFloat(e.target.value) || 0)}
-                      className="text-center"
-                      min="0"
-                      max="10"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">DO (mg/L)</Label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      value={environmentData.dissolvedOxygen}
-                      onChange={(e) => updateEnvironmentData('dissolvedOxygen', parseFloat(e.target.value) || 0)}
-                      className="text-center"
-                      min="0"
-                      max="20"
-                    />
-                  </div>
-                </div>
-
-                {/* 환경 상태 표시 */}
-                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                    <div className={`flex items-center gap-1 ${
-                      environmentData.innerTemperature >= 18 && environmentData.innerTemperature <= 32 
-                        ? 'text-green-600' : 'text-orange-600'
-                    }`}>
-                      <div className={`w-2 h-2 rounded-full ${
-                        environmentData.innerTemperature >= 18 && environmentData.innerTemperature <= 32 
-                          ? 'bg-green-500' : 'bg-orange-500'
-                      }`} />
-                      온도: {environmentData.innerTemperature >= 18 && environmentData.innerTemperature <= 32 ? '적정' : '주의'}
-                    </div>
-                    <div className={`flex items-center gap-1 ${
-                      environmentData.innerHumidity >= 40 && environmentData.innerHumidity <= 80 
-                        ? 'text-green-600' : 'text-orange-600'
-                    }`}>
-                      <div className={`w-2 h-2 rounded-full ${
-                        environmentData.innerHumidity >= 40 && environmentData.innerHumidity <= 80 
-                          ? 'bg-green-500' : 'bg-orange-500'
-                      }`} />
-                      습도: {environmentData.innerHumidity >= 40 && environmentData.innerHumidity <= 80 ? '적정' : '주의'}
-                    </div>
-                    <div className={`flex items-center gap-1 ${
-                      environmentData.ph >= 6.0 && environmentData.ph <= 7.5 
-                        ? 'text-green-600' : 'text-orange-600'
-                    }`}>
-                      <div className={`w-2 h-2 rounded-full ${
-                        environmentData.ph >= 6.0 && environmentData.ph <= 7.5 
-                          ? 'bg-green-500' : 'bg-orange-500'
-                      }`} />
-                      PH: {environmentData.ph >= 6.0 && environmentData.ph <= 7.5 ? '적정' : '주의'}
-                    </div>
-                    <div className={`flex items-center gap-1 ${
-                      environmentData.ec >= 1.0 && environmentData.ec <= 3.0 
-                        ? 'text-green-600' : 'text-orange-600'
-                    }`}>
-                      <div className={`w-2 h-2 rounded-full ${
-                        environmentData.ec >= 1.0 && environmentData.ec <= 3.0 
-                          ? 'bg-green-500' : 'bg-orange-500'
-                      }`} />
-                      EC: {environmentData.ec >= 1.0 && environmentData.ec <= 3.0 ? '적정' : '주의'}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
             {/* 이미지 업로드 섹션 */}
             <Card className="border-green-200">
@@ -2413,32 +2401,6 @@ export default function CropGrowthAnalysis() {
                                 <span className="text-sm">{model.name}</span>
                                 <div className="flex items-center gap-1">
                                   <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
-                                    {model.accuracy}
-                                  </Badge>
-                                  <Info className="h-3 w-3 text-gray-400" />
-                                </div>
-                              </div>
-                            </SelectItem>
-                          ))}
-
-                        {/* 유료 모델 그룹 */}
-                        <div className="px-2 py-1 text-xs font-semibold text-blue-700 bg-blue-50 border-b border-t mt-1">
-                          💎 유료 모델 (전문 분석)
-                        </div>
-                        {models
-                          .filter((model) => model.category === "유료")
-                          .map((model) => (
-                            <SelectItem
-                              key={model.id}
-                              value={model.id}
-                              onMouseEnter={() => setHoveredModel(model.id)}
-                              onMouseLeave={() => setHoveredModel(null)}
-                              className="pl-4"
-                            >
-                              <div className="flex items-center justify-between w-full">
-                                <span className="text-sm">{model.name}</span>
-                                <div className="flex items-center gap-1">
-                                  <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-300">
                                     {model.accuracy}
                                   </Badge>
                                   <Info className="h-3 w-3 text-gray-400" />
