@@ -358,6 +358,57 @@ export default function AnalysesPage() {
     }
   }
 
+  // 환경 데이터 표시 컴포넌트
+  const EnvironmentDataDisplay = ({ environmentData }: { environmentData?: EnvironmentData }) => {
+    if (!environmentData) {
+      return (
+        <div className="text-sm text-gray-500 italic">
+          환경 데이터 없음
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-2">
+        <div className="text-sm font-medium text-gray-700 mb-2">환경 데이터</div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="flex justify-between">
+            <span className="text-gray-600">내부온도:</span>
+            <span className="font-medium">{environmentData.innerTemperature}°C</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">외부온도:</span>
+            <span className="font-medium">{environmentData.outerTemperature}°C</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">습도:</span>
+            <span className="font-medium">{environmentData.innerHumidity}%</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">근권온도:</span>
+            <span className="font-medium">{environmentData.rootZoneTemperature}°C</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">일사량:</span>
+            <span className="font-medium">{environmentData.solarRadiation}W/m²</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">PH:</span>
+            <span className="font-medium">{environmentData.ph}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">EC:</span>
+            <span className="font-medium">{environmentData.ec}dS/m</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-600">DO:</span>
+            <span className="font-medium">{environmentData.dissolvedOxygen}mg/L</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // 식물 종류별 통계 개선 함수
   const getPlantTypeStatistics = () => {
     const plantStats: { [key: string]: any } = {}
@@ -648,6 +699,7 @@ export default function AnalysesPage() {
                     <TableHead>분석 항목</TableHead>
                     <TableHead>건강도</TableHead>
                     <TableHead>상태</TableHead>
+                    <TableHead>환경 데이터</TableHead>
                     <TableHead>권장사항</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -736,6 +788,9 @@ export default function AnalysesPage() {
                         <Badge variant="secondary" className="bg-green-100 text-green-800">
                           {analysis.result.condition}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <EnvironmentDataDisplay environmentData={analysis.result.environmentData} />
                       </TableCell>
                       <TableCell>
                         <div className="max-w-xs">

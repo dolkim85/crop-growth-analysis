@@ -67,6 +67,13 @@ interface EnvironmentData {
   dissolvedOxygen: number // DO (mg/L)
 }
 
+interface EnvironmentRecord {
+  id: string
+  timestamp: string // ISO 8601 format
+  data: EnvironmentData
+  userId: string
+}
+
 interface AnalysisResult {
   modelId: string // 사용된 모델 ID
   selectedAnalysisItems: string[] // 선택된 분석 항목들
@@ -116,7 +123,8 @@ const formatDate = (date: Date, format: string) => {
 const STORAGE_KEYS = {
   UPLOADED_IMAGES: 'crop-analysis-uploaded-images',
   SAVED_ANALYSES: 'crop-analysis-saved-analyses',
-  CAMERAS: 'crop-analysis-cameras'
+  CAMERAS: 'crop-analysis-cameras',
+  ENVIRONMENT_RECORDS: 'crop-analysis-environment-records'
 }
 
 // 이미지를 Base64로 변환하는 함수 (압축 기능 추가)
@@ -224,6 +232,13 @@ export default function CropGrowthAnalysis() {
     ec: 1.8,
     dissolvedOxygen: 8.0
   })
+
+  // 환경 데이터 시계열 저장
+  const [environmentRecords, setEnvironmentRecords] = useState<EnvironmentRecord[]>([])
+  const [selectedEnvironmentDate, setSelectedEnvironmentDate] = useState<Date | null>(null)
+  const [selectedEnvironmentTime, setSelectedEnvironmentTime] = useState<string>("")
+  const [useCurrentEnvironmentData, setUseCurrentEnvironmentData] = useState(true)
+  const [selectedEnvironmentRecord, setSelectedEnvironmentRecord] = useState<EnvironmentRecord | null>(null)
   const [savedAnalyses, setSavedAnalyses] = useState<SavedAnalysis[]>([
     {
       id: "1",
@@ -349,192 +364,170 @@ export default function CropGrowthAnalysis() {
   })
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
 
-  const models = [
-    // 무료 모델
-    {
-      id: "plant-health-basic",
-      name: "Plant Health Basic (무료)",
-      category: "무료",
-      description: "기본적인 식물 건강 상태를 분석합니다. 무료로 제공되며 일일 50회 제한이 있습니다.",
-      provider: "OpenCV + TensorFlow Lite",
-      accuracy: "78%",
-      features: ["기본 건강도 측정", "잎 색상 분석", "크기 측정"],
-      analysisItems: [
-        { id: "plantHealth", name: "식물 건강도 (%)", type: "number", unit: "%" },
-        { id: "leafColor", name: "잎 색상 분석", type: "object" },
-        { id: "size", name: "전체 크기", type: "number", unit: "cm" },
-        { id: "leafCount", name: "잎 개수", type: "number", unit: "개" },
-        { id: "condition", name: "전반적 상태", type: "string" }
-      ]
-    },
-    {
-      id: "plantnet-basic",
-      name: "PlantNet Basic (무료)",
-      category: "무료", 
-      description: "식물 종 식별 및 기본 건강 분석을 제공하는 무료 모델입니다.",
-      provider: "PlantNet API",
-      accuracy: "82%",
-      features: ["식물 종 식별", "기본 건강 분석", "병해 탐지"],
-      analysisItems: [
-        { id: "plantSpecies", name: "식물 종 식별", type: "string" },
-        { id: "plantHealth", name: "식물 건강도 (%)", type: "number", unit: "%" },
-        { id: "diseaseDetection", name: "병해 탐지", type: "object" },
-        { id: "confidence", name: "식별 신뢰도", type: "number", unit: "%" },
-        { id: "leafCondition", name: "잎 상태", type: "string" }
-      ]
-    },
-    {
-      id: "tensorflow-plant-free",
-      name: "TensorFlow Plant Classifier (무료)",
-      category: "무료",
-      description: "Google의 TensorFlow를 기반으로 한 무료 식물 분류 모델입니다.",
-      provider: "Google TensorFlow",
-      accuracy: "75%",
-      features: ["식물 분류", "기본 건강도", "성장 단계 분석"],
-      analysisItems: [
-        { id: "plantClassification", name: "식물 분류", type: "string" },
-        { id: "growthStage", name: "성장 단계", type: "string" },
-        { id: "plantHealth", name: "기본 건강도", type: "number", unit: "%" },
-        { id: "maturityLevel", name: "성숙도", type: "number", unit: "%" },
-        { id: "leafDevelopment", name: "잎 발달 상태", type: "string" }
-      ]
-    },
-
-    // 유료 모델
-    {
-      id: "plantix-pro",
-      name: "Plantix Professional ($29/월)",
-      category: "유료",
-      description: "전문가 수준의 식물 질병 진단 및 해결책 제공. 농업 전문가들이 사용하는 고정밀 AI 모델입니다.",
-      provider: "PEAT (Progressive Environmental & Agricultural Technologies)",
-      accuracy: "94%",
-      features: ["정밀 질병 진단", "해결책 제안", "영양 결핍 분석", "해충 식별", "전문가 상담"],
-      analysisItems: [
-        { id: "diseaseAnalysis", name: "정밀 질병 진단", type: "object" },
-        { id: "nutritionDeficiency", name: "영양 결핍 분석", type: "object" },
-        { id: "pestIdentification", name: "해충 식별", type: "object" },
-        { id: "treatmentRecommendation", name: "치료법 제안", type: "string" },
-        { id: "severityLevel", name: "심각도 수준", type: "number", unit: "/10" },
-        { id: "expertConsultation", name: "전문가 의견", type: "string" }
-      ]
-    },
-    {
-      id: "cropx-premium",
-      name: "CropX Premium Analytics ($49/월)",
-      category: "유료",
-      description: "IoT 센서와 AI를 결합한 프리미엄 작물 분석 솔루션입니다.",
-      provider: "CropX Technologies",
-      accuracy: "96%",
-      features: ["실시간 모니터링", "토양 분석", "관개 최적화", "수확량 예측", "기상 연동"],
-      analysisItems: [
-        { id: "soilMoisture", name: "토양 수분", type: "number", unit: "%" },
-        { id: "soilTemperature", name: "토양 온도", type: "number", unit: "°C" },
-        { id: "irrigationNeed", name: "관개 필요량", type: "number", unit: "L/m²" },
-        { id: "yieldPrediction", name: "수확량 예측", type: "number", unit: "kg/m²" },
-        { id: "weatherImpact", name: "기상 영향", type: "object" },
-        { id: "optimalHarvest", name: "최적 수확일", type: "string" }
-      ]
-    },
-    {
-      id: "agromonitoring-pro",
-      name: "Agro Monitoring Pro ($19/월)",
-      category: "유료",
-      description: "위성 이미지와 AI를 활용한 정밀 농업 모니터링 서비스입니다.",
-      provider: "OpenWeather Agro API",
-      accuracy: "91%",
-      features: ["위성 이미지 분석", "식생 지수", "기상 예보", "병해충 예측", "수확 시기 예측"],
-      analysisItems: [
-        { id: "ndvi", name: "정규식생지수 (NDVI)", type: "number", unit: "" },
-        { id: "satelliteAnalysis", name: "위성 이미지 분석", type: "object" },
-        { id: "weatherForecast", name: "기상 예보", type: "object" },
-        { id: "pestRisk", name: "병해충 위험도", type: "number", unit: "/10" },
-        { id: "harvestTiming", name: "수확 시기 예측", type: "string" }
-      ]
-    },
-    {
-      id: "azure-farmbeats",
-      name: "Microsoft Azure FarmBeats ($89/월)",
-      category: "유료",
-      description: "Microsoft의 클라우드 기반 농업 AI 플랫폼으로 엔터프라이즈급 분석을 제공합니다.",
-      provider: "Microsoft Azure",
-      accuracy: "97%",
-      features: ["드론 이미지 분석", "다중 센서 융합", "예측 분석", "자동화 제어", "대시보드"],
-      analysisItems: [
-        { id: "droneAnalysis", name: "드론 이미지 분석", type: "object" },
-        { id: "sensorFusion", name: "다중 센서 데이터", type: "object" },
-        { id: "predictiveAnalytics", name: "예측 분석", type: "object" },
-        { id: "automationControl", name: "자동화 제어", type: "string" },
-        { id: "aiDashboard", name: "AI 대시보드", type: "object" },
-        { id: "yieldOptimization", name: "수확량 최적화", type: "number", unit: "%" }
-      ]
-    },
-
-    // 학습 AI 모델
-    {
-      id: "custom-cnn-v1",
-      name: "Custom CNN Model v1.0 (학습중)",
-      category: "학습AI",
-      description: "사용자 데이터로 지속적으로 학습하는 맞춤형 CNN 모델입니다. 사용할수록 정확도가 향상됩니다.",
-      provider: "자체 개발 모델",
-      accuracy: "학습중 (현재 71%)",
-      features: ["개인화 학습", "지속적 개선", "맞춤형 분석", "사용자 피드백 반영"],
-      analysisItems: [
-        { id: "personalizedHealth", name: "개인화 건강도", type: "number", unit: "%" },
-        { id: "learningProgress", name: "학습 진행도", type: "number", unit: "%" },
-        { id: "customMetrics", name: "맞춤형 지표", type: "object" },
-        { id: "userFeedback", name: "사용자 피드백", type: "string" },
-        { id: "adaptiveRecommendation", name: "적응형 권장사항", type: "string" }
-      ]
-    },
-    {
-      id: "transfer-learning-plant",
-      name: "Transfer Learning Plant Model (학습중)",
-      category: "학습AI",
-      description: "ImageNet 사전 훈련 모델을 기반으로 농작물 데이터로 전이학습하는 모델입니다.",
-      provider: "ResNet50 + Custom Dataset",
-      accuracy: "학습중 (현재 68%)",
-      features: ["전이학습", "빠른 적응", "다양한 작물 지원", "실시간 학습"],
-      analysisItems: [
-        { id: "transferAccuracy", name: "전이학습 정확도", type: "number", unit: "%" },
-        { id: "adaptationSpeed", name: "적응 속도", type: "number", unit: "epochs" },
-        { id: "cropVariety", name: "작물 다양성 지원", type: "object" },
-        { id: "realTimeLearning", name: "실시간 학습 상태", type: "string" },
-        { id: "modelConfidence", name: "모델 신뢰도", type: "number", unit: "%" }
-      ]
-    },
-    {
-      id: "automl-vision-plant",
-      name: "AutoML Vision Plant (학습중)",
-      category: "학습AI", 
-      description: "Google의 AutoML Vision을 사용해 자동으로 최적화되는 식물 분석 모델입니다.",
-      provider: "Google AutoML Vision",
-      accuracy: "학습중 (현재 73%)",
-      features: ["자동 최적화", "하이퍼파라미터 튜닝", "모델 앙상블", "성능 모니터링"],
-      analysisItems: [
-        { id: "autoOptimization", name: "자동 최적화 점수", type: "number", unit: "%" },
-        { id: "hyperparameterTuning", name: "하이퍼파라미터 상태", type: "object" },
-        { id: "ensemblePerformance", name: "앙상블 성능", type: "number", unit: "%" },
-        { id: "performanceMonitoring", name: "성능 모니터링", type: "object" },
-        { id: "optimizationHistory", name: "최적화 이력", type: "object" }
-      ]
-    },
-    {
-      id: "ensemble-learning-crop",
-      name: "Ensemble Learning Crop Model (학습중)",
-      category: "학습AI",
-      description: "여러 머신러닝 모델을 결합한 앙상블 학습으로 높은 정확도를 추구하는 모델입니다.",
-      provider: "Random Forest + SVM + Neural Network",
-      accuracy: "학습중 (현재 76%)",
-      features: ["앙상블 학습", "다중 모델 융합", "높은 안정성", "오버피팅 방지"],
-      analysisItems: [
-        { id: "ensembleAccuracy", name: "앙상블 정확도", type: "number", unit: "%" },
-        { id: "modelFusion", name: "모델 융합 결과", type: "object" },
-        { id: "stabilityScore", name: "안정성 점수", type: "number", unit: "/10" },
-        { id: "overfittingPrevention", name: "오버피팅 방지율", type: "number", unit: "%" },
-        { id: "individualModelScores", name: "개별 모델 점수", type: "object" }
-      ]
+  const [models, setModels] = useState([])
+  const [isLoadingModels, setIsLoadingModels] = useState(true)
+  
+  // 백엔드에서 모델 목록 로드
+  const loadModelsFromBackend = async () => {
+    try {
+      setIsLoadingModels(true)
+      
+      // 백엔드 서버 연결 확인
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5초 타임아웃
+      
+      const response = await fetch('http://localhost:5000/api/v1/models', {
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+      
+      clearTimeout(timeoutId)
+      
+      if (response.ok) {
+        const result = await response.json()
+        if (result.status === 'success') {
+          setModels(result.data)
+          console.log('✅ AI 모델 목록 로드 완료:', result.data.length, '개 모델')
+          // 성공 시 경고 플래그 제거
+          localStorage.removeItem('backend_warning_shown')
+        } else {
+          throw new Error(result.message)
+        }
+      } else {
+        throw new Error(`모델 로드 실패: ${response.status}`)
+      }
+    } catch (error) {
+      console.error('❌ 모델 로드 오류:', error)
+      // 백엔드 연결 실패 시 기본 모델 사용
+      setModels([
+        {
+          id: "basic-analysis-v1",
+          name: "기본 분석 모델 v1.0 (로컬)",
+          category: "무료",
+          accuracy: "85%",
+          description: "백엔드 서버 연결 실패 시 사용되는 기본 모델입니다.",
+          provider: "로컬 시스템",
+          features: ["기본 분석"],
+          analysisItems: [
+            { id: "plantHealth", name: "식물 건강도", type: "number", unit: "%" },
+            { id: "condition", name: "전체 상태", type: "string", unit: "" }
+          ]
+        }
+      ])
+      // 백엔드 서버 상태 확인 알림 (한 번만)
+      if (!localStorage.getItem('backend_warning_shown')) {
+        console.warn('⚠️ AI 백엔드 서버에 연결할 수 없습니다. 로컬 모델을 사용합니다.')
+        localStorage.setItem('backend_warning_shown', 'true')
+      }
+    } finally {
+      setIsLoadingModels(false)
     }
-  ]
+  }
+
+  // 환경 데이터 자동 저장 (5분마다)
+  useEffect(() => {
+    const saveEnvironmentData = () => {
+      const now = new Date()
+      const record: EnvironmentRecord = {
+        id: Math.random().toString(36).substr(2, 9),
+        timestamp: now.toISOString(),
+        data: { ...environmentData },
+        userId
+      }
+      
+      setEnvironmentRecords(prev => {
+        const newRecords = [...prev, record]
+        // 한 달(30일) 이전 데이터 제거
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        const filteredRecords = newRecords.filter(r => 
+          new Date(r.timestamp) > thirtyDaysAgo && r.userId === userId
+        )
+        const finalRecords = filteredRecords.slice(-8640) // 최대 8640개 (30일 * 24시간 * 12개/시간)
+        
+        // 로컬 스토리지에 저장
+        try {
+          localStorage.setItem(STORAGE_KEYS.ENVIRONMENT_RECORDS, JSON.stringify(finalRecords))
+        } catch (error) {
+          console.error('환경 데이터 저장 실패:', error)
+        }
+        
+        return finalRecords
+      })
+    }
+
+    // 5분마다 환경 데이터 저장
+    const interval = setInterval(saveEnvironmentData, 5 * 60 * 1000)
+    
+    // 컴포넌트 마운트 시 즉시 한 번 저장
+    if (userId) {
+      saveEnvironmentData()
+    }
+
+    return () => clearInterval(interval)
+  }, [environmentData, userId])
+
+  // 환경 데이터 기록 관리 함수들
+  const getEnvironmentRecordsForDate = (date: Date) => {
+    const startOfDay = new Date(date)
+    startOfDay.setHours(0, 0, 0, 0)
+    const endOfDay = new Date(date)
+    endOfDay.setHours(23, 59, 59, 999)
+    
+    return environmentRecords.filter(record => {
+      const recordDate = new Date(record.timestamp)
+      return recordDate >= startOfDay && recordDate <= endOfDay && record.userId === userId
+    }).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+  }
+
+  const getAvailableTimesForDate = (date: Date) => {
+    const records = getEnvironmentRecordsForDate(date)
+    return records.map(record => {
+      const time = new Date(record.timestamp)
+      return {
+        value: `${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}`,
+        record
+      }
+    })
+  }
+
+  const handleEnvironmentDateTimeSelection = (date: Date | null, time: string) => {
+    setSelectedEnvironmentDate(date)
+    setSelectedEnvironmentTime(time)
+    
+    if (date && time && !useCurrentEnvironmentData) {
+      const records = getEnvironmentRecordsForDate(date)
+      const selectedRecord = records.find(record => {
+        const recordTime = new Date(record.timestamp)
+        const formattedTime = `${recordTime.getHours().toString().padStart(2, '0')}:${recordTime.getMinutes().toString().padStart(2, '0')}`
+        return formattedTime === time
+      })
+      setSelectedEnvironmentRecord(selectedRecord || null)
+    } else {
+      setSelectedEnvironmentRecord(null)
+    }
+  }
+
+  const toggleCurrentEnvironmentData = (checked: boolean) => {
+    setUseCurrentEnvironmentData(checked)
+    if (checked) {
+      setSelectedEnvironmentDate(null)
+      setSelectedEnvironmentTime("")
+      setSelectedEnvironmentRecord(null)
+    }
+  }
+
+  // 분석에 사용할 환경 데이터 가져오기
+  const getAnalysisEnvironmentData = (): EnvironmentData => {
+    if (useCurrentEnvironmentData) {
+      return environmentData
+    } else if (selectedEnvironmentRecord) {
+      return selectedEnvironmentRecord.data
+    } else {
+      return environmentData // 폴백
+    }
+  }
 
   // 로컬스토리지에서 데이터 로드하는 함수
   const loadFromStorage = async () => {
@@ -575,6 +568,12 @@ export default function CropGrowthAnalysis() {
       const storedCameras = localStorage.getItem(STORAGE_KEYS.CAMERAS)
       if (storedCameras) {
         setCameras(JSON.parse(storedCameras))
+      }
+
+      // 환경 데이터 기록 로드
+      const storedEnvironmentRecords = localStorage.getItem(STORAGE_KEYS.ENVIRONMENT_RECORDS)
+      if (storedEnvironmentRecords) {
+        setEnvironmentRecords(JSON.parse(storedEnvironmentRecords))
       }
     } catch (error) {
       console.error('데이터 로드 실패:', error)
@@ -664,6 +663,7 @@ export default function CropGrowthAnalysis() {
         localStorage.setItem(STORAGE_KEYS.UPLOADED_IMAGES, JSON.stringify(validImageData))
         localStorage.setItem(STORAGE_KEYS.SAVED_ANALYSES, JSON.stringify(analyses))
         localStorage.setItem(STORAGE_KEYS.CAMERAS, JSON.stringify(cameras))
+        localStorage.setItem(STORAGE_KEYS.ENVIRONMENT_RECORDS, JSON.stringify(environmentRecords))
       } catch (quotaError) {
         console.warn('저장 공간이 부족합니다. 추가 정리를 시도합니다...')
         
@@ -678,6 +678,7 @@ export default function CropGrowthAnalysis() {
           localStorage.setItem(STORAGE_KEYS.UPLOADED_IMAGES, JSON.stringify(reducedImages))
           localStorage.setItem(STORAGE_KEYS.SAVED_ANALYSES, JSON.stringify(analyses))
           localStorage.setItem(STORAGE_KEYS.CAMERAS, JSON.stringify(cameras))
+          localStorage.setItem(STORAGE_KEYS.ENVIRONMENT_RECORDS, JSON.stringify(environmentRecords))
           
           alert(`저장 공간 부족으로 오래된 이미지 ${sortedImages.length - keepCount}개가 자동 삭제되었습니다.`)
         } catch (finalError) {
@@ -695,6 +696,7 @@ export default function CropGrowthAnalysis() {
   useEffect(() => {
     if (userId) {
       loadFromStorage()
+      loadModelsFromBackend()
     }
   }, [userId])
 
@@ -888,7 +890,7 @@ export default function CropGrowthAnalysis() {
         }
       }
 
-      // 2단계: 선택된 모델과 분석 항목에 따른 분석 결과 생성
+      // 2단계: 실제 AI 백엔드 서버에 분석 요청
       const selectedModelData = models.find(m => m.id === selectedModel)
       if (!selectedModelData) {
         alert("선택된 모델을 찾을 수 없습니다.")
@@ -896,132 +898,64 @@ export default function CropGrowthAnalysis() {
         return
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 3000))
-
-      const analysisData: { [key: string]: any } = {}
+      // FormData 준비
+      const formData = new FormData()
       
-      // 선택된 분석 항목들에 대해서만 데이터 생성
-      selectedAnalysisItems.forEach(itemId => {
-        const item = selectedModelData.analysisItems.find(ai => ai.id === itemId)
-        if (item) {
-          switch (item.type) {
-            case "number":
-              if (itemId === "plantHealth") {
-                analysisData[itemId] = Math.floor(Math.random() * 30 + 70) // 70-100%
-              } else if (itemId === "size" || itemId === "height") {
-                analysisData[itemId] = Math.floor(Math.random() * 30 + 20) // 20-50cm
-              } else if (itemId === "leafCount") {
-                analysisData[itemId] = Math.floor(Math.random() * 15 + 5) // 5-20개
-              } else if (itemId.includes("Temperature")) {
-                analysisData[itemId] = Math.floor(Math.random() * 20 + 15) // 15-35°C
-              } else if (itemId.includes("Moisture")) {
-                analysisData[itemId] = Math.floor(Math.random() * 40 + 40) // 40-80%
-              } else if (itemId.includes("Accuracy") || itemId.includes("confidence")) {
-                analysisData[itemId] = Math.floor(Math.random() * 20 + 75) // 75-95%
-              } else {
-                analysisData[itemId] = Math.floor(Math.random() * 100)
-              }
-              break
-            case "string":
-              if (itemId === "condition") {
-                analysisData[itemId] = ["우수", "양호", "보통", "주의"][Math.floor(Math.random() * 4)]
-              } else if (itemId.includes("Species") || itemId.includes("Classification")) {
-                analysisData[itemId] = plantTypes.find(p => p.id === selectedPlantType)?.name || selectedPlantType
-              } else if (itemId.includes("Stage")) {
-                analysisData[itemId] = ["묘목", "성장기", "개화기", "결실기"][Math.floor(Math.random() * 4)]
-              } else {
-                analysisData[itemId] = `${item.name} 분석 결과`
-              }
-              break
-            case "object":
-              if (itemId === "leafColor") {
-                analysisData[itemId] = {
-                  rgb: { r: Math.floor(Math.random() * 50) + 50, g: Math.floor(Math.random() * 100) + 100, b: Math.floor(Math.random() * 30) + 30 },
-                  hsv: { h: Math.random() * 60 + 80, s: Math.random() * 40 + 40, v: Math.random() * 30 + 50 },
-                  greenness: Math.random() * 30 + 60,
-                  yellowing: Math.random() * 20 + 5,
-                  browning: Math.random() * 15 + 2,
-                }
-              } else if (itemId.includes("disease") || itemId.includes("Disease")) {
-                analysisData[itemId] = {
-                  detected: Math.random() > 0.7,
-                  confidence: Math.floor(Math.random() * 30 + 70),
-                  type: ["잎마름병", "역병", "탄저병", "없음"][Math.floor(Math.random() * 4)]
-                }
-              } else {
-                analysisData[itemId] = {
-                  status: "정상",
-                  value: Math.floor(Math.random() * 100),
-                  details: `${item.name} 상세 분석 결과`
-                }
-              }
-              break
-          }
-        }
+      // 이미지 파일들 추가
+      for (const image of analysisImages) {
+        formData.append('images', image.file)
+      }
+      
+      // 분석에 사용할 환경 데이터 가져오기 (현재 데이터 또는 선택된 과거 데이터)
+      const analysisEnvData = getAnalysisEnvironmentData()
+      formData.append('environmentData', JSON.stringify(analysisEnvData))
+      formData.append('modelId', selectedModel)
+      formData.append('analysisItems', JSON.stringify(selectedAnalysisItems))
+      formData.append('plantType', selectedPlantType)
+
+      // 백엔드 API 호출
+      const response = await fetch('http://localhost:5000/api/v1/analyze', {
+        method: 'POST',
+        body: formData,
       })
 
-      // 환경 데이터 기반 권장사항 생성
-      const environmentRecommendations = []
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `서버 오류: ${response.status}`)
+      }
+
+      const result = await response.json()
       
-      if (environmentData.innerTemperature < 18) {
-        environmentRecommendations.push("온실 내부 온도가 낮습니다. 난방을 강화하세요.")
-      } else if (environmentData.innerTemperature > 32) {
-        environmentRecommendations.push("온실 내부 온도가 높습니다. 환기를 증가시키세요.")
+      if (result.status !== 'success') {
+        throw new Error(result.message || '분석 중 오류가 발생했습니다.')
       }
 
-      if (environmentData.innerHumidity < 40) {
-        environmentRecommendations.push("습도가 낮습니다. 가습기를 가동하세요.")
-      } else if (environmentData.innerHumidity > 80) {
-        environmentRecommendations.push("습도가 높습니다. 제습 또는 환기가 필요합니다.")
-      }
-
-      if (environmentData.ph < 6.0) {
-        environmentRecommendations.push("토양 PH가 낮습니다. 석회질 비료를 추가하세요.")
-      } else if (environmentData.ph > 7.5) {
-        environmentRecommendations.push("토양 PH가 높습니다. 황 성분 비료를 추가하세요.")
-      }
-
-      if (environmentData.ec < 1.0) {
-        environmentRecommendations.push("EC 농도가 낮습니다. 비료 공급을 늘리세요.")
-      } else if (environmentData.ec > 3.0) {
-        environmentRecommendations.push("EC 농도가 높습니다. 물 공급을 늘려 희석하세요.")
-      }
-
-      if (environmentData.dissolvedOxygen < 5.0) {
-        environmentRecommendations.push("용존산소가 부족합니다. 산소 공급을 늘리세요.")
-      }
-
-      const allRecommendations = [
-        "수분 공급량을 10% 증가시키세요",
-        "질소 비료를 추가 공급하는 것을 권장합니다",
-        "잎의 색상 변화를 지속적으로 모니터링하세요",
-        "적절한 광량을 유지해주세요",
-        ...environmentRecommendations
-      ]
-
-      const mockResult: AnalysisResult = {
-        modelId: selectedModel,
-        selectedAnalysisItems: selectedAnalysisItems,
-        analysisData,
-        environmentData: { ...environmentData }, // 환경 데이터 포함
-        condition: analysisData.condition || "양호",
-        recommendations: allRecommendations.slice(0, Math.min(allRecommendations.length, Math.floor(Math.random() * 3) + 2)),
+      // AI 분석 결과를 AnalysisResult 형태로 변환
+      const aiResult: AnalysisResult = {
+        modelId: result.data.modelId,
+        selectedAnalysisItems: result.data.selectedAnalysisItems,
+        analysisData: result.data.analysisData,
+        environmentData: { ...analysisEnvData }, // 분석에 사용된 환경 데이터 포함
+        condition: result.data.condition,
+        recommendations: result.data.recommendations,
         date: new Date().toISOString(),
         comparedImages: selectedAnalysisImages,
         
-        // 호환성을 위한 기본 값들
-        plantHealth: analysisData.plantHealth || Math.floor(Math.random() * 30 + 70),
-        growthRate: Math.floor(Math.random() * 10 + 5),
-        size: analysisData.size || Math.floor(Math.random() * 30 + 20),
-        height: analysisData.height || Math.floor(Math.random() * 30 + 20),
-        leafCount: analysisData.leafCount || Math.floor(Math.random() * 15 + 5),
-        leafSize: Math.floor(Math.random() * 5 + 3),
+        // 호환성을 위한 기본 값들 (AI 결과에서 가져오거나 기본값)
+        plantHealth: result.data.analysisData.plantHealth || result.data.overallScore || 85,
+        growthRate: result.data.analysisData.growthRate || 7,
+        size: result.data.analysisData.size || 25,
+        height: result.data.analysisData.height || 30,
+        leafCount: result.data.analysisData.leafCount || 8,
+        leafSize: result.data.analysisData.leafSize || 4,
       }
 
-      setAnalysisResult(mockResult)
+      console.log('🎯 실제 AI 분석 완료:', aiResult)
+      setAnalysisResult(aiResult)
+
     } catch (error) {
-      console.error("분석 중 오류 발생:", error)
-      alert("분석 중 오류가 발생했습니다. 다시 시도해주세요.")
+      console.error("AI 분석 중 오류 발생:", error)
+      alert(`AI 분석 중 오류가 발생했습니다: ${error.message}\n\n백엔드 서버(localhost:5000)가 실행 중인지 확인해주세요.`)
     } finally {
       setIsAnalyzing(false)
     }
@@ -1351,147 +1285,224 @@ export default function CropGrowthAnalysis() {
             <p className="text-sm text-purple-600">센서로부터 실시간으로 수집된 환경 데이터입니다</p>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
-              {/* 온도 관련 */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">내부온도 (°C)</Label>
-                <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
-                  {environmentData.innerTemperature}
+            {/* 환경 데이터 선택 옵션 */}
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="useCurrentData"
+                    checked={useCurrentEnvironmentData}
+                    onChange={(e) => toggleCurrentEnvironmentData(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <Label htmlFor="useCurrentData" className="text-sm font-medium text-blue-700">
+                    현재 환경 데이터 사용
+                  </Label>
                 </div>
+                
+                {!useCurrentEnvironmentData && (
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm text-blue-600">날짜 선택:</Label>
+                      <input
+                        type="date"
+                        value={selectedEnvironmentDate ? selectedEnvironmentDate.toISOString().split('T')[0] : ''}
+                        onChange={(e) => {
+                          const date = e.target.value ? new Date(e.target.value) : null
+                          handleEnvironmentDateTimeSelection(date, selectedEnvironmentTime)
+                        }}
+                        className="px-2 py-1 border rounded text-sm"
+                      />
+                    </div>
+                    
+                    {selectedEnvironmentDate && (
+                      <div className="flex items-center gap-2">
+                        <Label className="text-sm text-blue-600">시간 선택:</Label>
+                        <select
+                          value={selectedEnvironmentTime}
+                          onChange={(e) => handleEnvironmentDateTimeSelection(selectedEnvironmentDate, e.target.value)}
+                          className="px-2 py-1 border rounded text-sm"
+                        >
+                          <option value="">시간을 선택하세요</option>
+                          {getAvailableTimesForDate(selectedEnvironmentDate).map(({ value, record }) => (
+                            <option key={record.id} value={value}>
+                              {value} ({new Date(record.timestamp).toLocaleDateString('ko-KR')})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">외부온도 (°C)</Label>
-                <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
-                  {environmentData.outerTemperature}
+              {!useCurrentEnvironmentData && selectedEnvironmentRecord && (
+                <div className="text-sm text-blue-600">
+                  ✓ 선택된 환경 데이터: {new Date(selectedEnvironmentRecord.timestamp).toLocaleString('ko-KR')}
                 </div>
-              </div>
+              )}
+              
+              {!useCurrentEnvironmentData && !selectedEnvironmentRecord && selectedEnvironmentDate && selectedEnvironmentTime && (
+                <div className="text-sm text-orange-600">
+                  ⚠️ 선택한 날짜/시간에 해당하는 환경 데이터가 없습니다.
+                </div>
+              )}
+            </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">근권온도 (°C)</Label>
-                <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
-                  {environmentData.rootZoneTemperature}
-                </div>
-              </div>
+            <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
+              {/* 온도 관련 */}
+              {(() => {
+                const displayData = getAnalysisEnvironmentData()
+                return (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">내부온도 (°C)</Label>
+                      <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
+                        {displayData.innerTemperature}
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">외부온도 (°C)</Label>
+                      <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
+                        {displayData.outerTemperature}
+                      </div>
+                    </div>
 
-              {/* 습도 */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">내부습도 (%)</Label>
-                <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
-                  {environmentData.innerHumidity}
-                </div>
-              </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">근권온도 (°C)</Label>
+                      <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
+                        {displayData.rootZoneTemperature}
+                      </div>
+                    </div>
 
-              {/* 일사량 */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">일사량 (W/m²)</Label>
-                <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
-                  {environmentData.solarRadiation}
-                </div>
-              </div>
+                    {/* 습도 */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">내부습도 (%)</Label>
+                      <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
+                        {displayData.innerHumidity}
+                      </div>
+                    </div>
 
-              {/* 수질 관련 */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">PH</Label>
-                <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
-                  {environmentData.ph}
-                </div>
-              </div>
+                    {/* 일사량 */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">일사량 (W/m²)</Label>
+                      <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
+                        {displayData.solarRadiation}
+                      </div>
+                    </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">EC (dS/m)</Label>
-                <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
-                  {environmentData.ec}
-                </div>
-              </div>
+                    {/* 수질 관련 */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">PH</Label>
+                      <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
+                        {displayData.ph}
+                      </div>
+                    </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">DO (mg/L)</Label>
-                <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
-                  {environmentData.dissolvedOxygen}
-                </div>
-              </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">EC (dS/m)</Label>
+                      <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
+                        {displayData.ec}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">DO (mg/L)</Label>
+                      <div className="p-3 bg-gray-50 rounded-lg border text-center font-medium text-lg">
+                        {displayData.dissolvedOxygen}
+                      </div>
+                    </div>
+                  </>
+                )
+              })()}
             </div>
 
             {/* 환경 상태 표시 */}
-            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-              <div className="grid grid-cols-4 md:grid-cols-8 gap-2 text-xs">
-                <div className={`flex items-center gap-1 ${
-                  environmentData.innerTemperature >= 18 && environmentData.innerTemperature <= 32 
-                    ? 'text-green-600' : 'text-orange-600'
-                }`}>
-                  <div className={`w-2 h-2 rounded-full ${
-                    environmentData.innerTemperature >= 18 && environmentData.innerTemperature <= 32 
-                      ? 'bg-green-500' : 'bg-orange-500'
-                  }`} />
-                  온도: {environmentData.innerTemperature >= 18 && environmentData.innerTemperature <= 32 ? '적정' : '주의'}
+            {(() => {
+              const displayData = getAnalysisEnvironmentData()
+              return (
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="grid grid-cols-4 md:grid-cols-8 gap-2 text-xs">
+                    <div className={`flex items-center gap-1 ${
+                      displayData.innerTemperature >= 18 && displayData.innerTemperature <= 32 
+                        ? 'text-green-600' : 'text-orange-600'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        displayData.innerTemperature >= 18 && displayData.innerTemperature <= 32 
+                          ? 'bg-green-500' : 'bg-orange-500'
+                      }`} />
+                      온도: {displayData.innerTemperature >= 18 && displayData.innerTemperature <= 32 ? '적정' : '주의'}
+                    </div>
+                    <div className={`flex items-center gap-1 ${
+                      displayData.innerHumidity >= 40 && displayData.innerHumidity <= 80 
+                        ? 'text-green-600' : 'text-orange-600'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        displayData.innerHumidity >= 40 && displayData.innerHumidity <= 80 
+                          ? 'bg-green-500' : 'bg-orange-500'
+                      }`} />
+                      습도: {displayData.innerHumidity >= 40 && displayData.innerHumidity <= 80 ? '적정' : '주의'}
+                    </div>
+                    <div className={`flex items-center gap-1 ${
+                      displayData.ph >= 6.0 && displayData.ph <= 7.5 
+                        ? 'text-green-600' : 'text-orange-600'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        displayData.ph >= 6.0 && displayData.ph <= 7.5 
+                          ? 'bg-green-500' : 'bg-orange-500'
+                      }`} />
+                      PH: {displayData.ph >= 6.0 && displayData.ph <= 7.5 ? '적정' : '주의'}
+                    </div>
+                    <div className={`flex items-center gap-1 ${
+                      displayData.ec >= 1.0 && displayData.ec <= 3.0 
+                        ? 'text-green-600' : 'text-orange-600'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        displayData.ec >= 1.0 && displayData.ec <= 3.0 
+                          ? 'bg-green-500' : 'bg-orange-500'
+                      }`} />
+                      EC: {displayData.ec >= 1.0 && displayData.ec <= 3.0 ? '적정' : '주의'}
+                    </div>
+                    <div className={`flex items-center gap-1 ${
+                      displayData.rootZoneTemperature >= 18 && displayData.rootZoneTemperature <= 25 
+                        ? 'text-green-600' : 'text-orange-600'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        displayData.rootZoneTemperature >= 18 && displayData.rootZoneTemperature <= 25 
+                          ? 'bg-green-500' : 'bg-orange-500'
+                      }`} />
+                      근권: {displayData.rootZoneTemperature >= 18 && displayData.rootZoneTemperature <= 25 ? '적정' : '주의'}
+                    </div>
+                    <div className={`flex items-center gap-1 ${
+                      displayData.solarRadiation >= 200 && displayData.solarRadiation <= 800 
+                        ? 'text-green-600' : 'text-orange-600'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        displayData.solarRadiation >= 200 && displayData.solarRadiation <= 800 
+                          ? 'bg-green-500' : 'bg-orange-500'
+                      }`} />
+                      일사량: {displayData.solarRadiation >= 200 && displayData.solarRadiation <= 800 ? '적정' : '주의'}
+                    </div>
+                    <div className={`flex items-center gap-1 ${
+                      displayData.dissolvedOxygen >= 5.0 && displayData.dissolvedOxygen <= 12.0 
+                        ? 'text-green-600' : 'text-orange-600'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        displayData.dissolvedOxygen >= 5.0 && displayData.dissolvedOxygen <= 12.0 
+                          ? 'bg-green-500' : 'bg-orange-500'
+                      }`} />
+                      DO: {displayData.dissolvedOxygen >= 5.0 && displayData.dissolvedOxygen <= 12.0 ? '적정' : '주의'}
+                    </div>
+                    <div className="flex items-center gap-1 text-blue-600">
+                      <div className="w-2 h-2 rounded-full bg-blue-500" />
+                      센서 연결: 정상
+                    </div>
+                  </div>
                 </div>
-                <div className={`flex items-center gap-1 ${
-                  environmentData.innerHumidity >= 40 && environmentData.innerHumidity <= 80 
-                    ? 'text-green-600' : 'text-orange-600'
-                }`}>
-                  <div className={`w-2 h-2 rounded-full ${
-                    environmentData.innerHumidity >= 40 && environmentData.innerHumidity <= 80 
-                      ? 'bg-green-500' : 'bg-orange-500'
-                  }`} />
-                  습도: {environmentData.innerHumidity >= 40 && environmentData.innerHumidity <= 80 ? '적정' : '주의'}
-                </div>
-                <div className={`flex items-center gap-1 ${
-                  environmentData.ph >= 6.0 && environmentData.ph <= 7.5 
-                    ? 'text-green-600' : 'text-orange-600'
-                }`}>
-                  <div className={`w-2 h-2 rounded-full ${
-                    environmentData.ph >= 6.0 && environmentData.ph <= 7.5 
-                      ? 'bg-green-500' : 'bg-orange-500'
-                  }`} />
-                  PH: {environmentData.ph >= 6.0 && environmentData.ph <= 7.5 ? '적정' : '주의'}
-                </div>
-                <div className={`flex items-center gap-1 ${
-                  environmentData.ec >= 1.0 && environmentData.ec <= 3.0 
-                    ? 'text-green-600' : 'text-orange-600'
-                }`}>
-                  <div className={`w-2 h-2 rounded-full ${
-                    environmentData.ec >= 1.0 && environmentData.ec <= 3.0 
-                      ? 'bg-green-500' : 'bg-orange-500'
-                  }`} />
-                  EC: {environmentData.ec >= 1.0 && environmentData.ec <= 3.0 ? '적정' : '주의'}
-                </div>
-                <div className={`flex items-center gap-1 ${
-                  environmentData.rootZoneTemperature >= 18 && environmentData.rootZoneTemperature <= 25 
-                    ? 'text-green-600' : 'text-orange-600'
-                }`}>
-                  <div className={`w-2 h-2 rounded-full ${
-                    environmentData.rootZoneTemperature >= 18 && environmentData.rootZoneTemperature <= 25 
-                      ? 'bg-green-500' : 'bg-orange-500'
-                  }`} />
-                  근권: {environmentData.rootZoneTemperature >= 18 && environmentData.rootZoneTemperature <= 25 ? '적정' : '주의'}
-                </div>
-                <div className={`flex items-center gap-1 ${
-                  environmentData.solarRadiation >= 200 && environmentData.solarRadiation <= 800 
-                    ? 'text-green-600' : 'text-orange-600'
-                }`}>
-                  <div className={`w-2 h-2 rounded-full ${
-                    environmentData.solarRadiation >= 200 && environmentData.solarRadiation <= 800 
-                      ? 'bg-green-500' : 'bg-orange-500'
-                  }`} />
-                  일사량: {environmentData.solarRadiation >= 200 && environmentData.solarRadiation <= 800 ? '적정' : '주의'}
-                </div>
-                <div className={`flex items-center gap-1 ${
-                  environmentData.dissolvedOxygen >= 5.0 && environmentData.dissolvedOxygen <= 12.0 
-                    ? 'text-green-600' : 'text-orange-600'
-                }`}>
-                  <div className={`w-2 h-2 rounded-full ${
-                    environmentData.dissolvedOxygen >= 5.0 && environmentData.dissolvedOxygen <= 12.0 
-                      ? 'bg-green-500' : 'bg-orange-500'
-                  }`} />
-                  DO: {environmentData.dissolvedOxygen >= 5.0 && environmentData.dissolvedOxygen <= 12.0 ? '적정' : '주의'}
-                </div>
-                <div className="flex items-center gap-1 text-blue-600">
-                  <div className="w-2 h-2 rounded-full bg-blue-500" />
-                  센서 연결: 정상
-                </div>
-              </div>
-            </div>
+              )
+            })()}
           </CardContent>
         </Card>
 
