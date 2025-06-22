@@ -55,10 +55,23 @@ interface ObservationCamera {
   userId: string
 }
 
+// 스마트팜 환경 데이터 인터페이스
+interface EnvironmentData {
+  innerTemperature: number // 내부온도 (°C)
+  outerTemperature: number // 외부온도 (°C)
+  innerHumidity: number // 내부습도 (%)
+  rootZoneTemperature: number // 근권온도 (°C)
+  solarRadiation: number // 일사량 (W/m²)
+  ph: number // PH
+  ec: number // EC (dS/m)
+  dissolvedOxygen: number // DO (mg/L)
+}
+
 interface AnalysisResult {
   modelId: string // 사용된 모델 ID
   selectedAnalysisItems: string[] // 선택된 분석 항목들
   analysisData: { [key: string]: any } // 동적 분석 데이터
+  environmentData?: EnvironmentData // 환경 데이터 (선택적)
   condition: string
   recommendations: string[]
   date: string
@@ -199,6 +212,18 @@ export default function CropGrowthAnalysis() {
   const [selectedAnalysisImages, setSelectedAnalysisImages] = useState<string[]>([])
   const [editingImage, setEditingImage] = useState<UploadedImage | null>(null)
   const [isEditorOpen, setIsEditorOpen] = useState(false)
+  
+  // 환경 데이터 상태
+  const [environmentData, setEnvironmentData] = useState<EnvironmentData>({
+    innerTemperature: 25.0,
+    outerTemperature: 22.0,
+    innerHumidity: 65.0,
+    rootZoneTemperature: 20.0,
+    solarRadiation: 350.0,
+    ph: 6.5,
+    ec: 1.8,
+    dissolvedOxygen: 8.0
+  })
   const [savedAnalyses, setSavedAnalyses] = useState<SavedAnalysis[]>([
     {
       id: "1",
@@ -935,17 +960,52 @@ export default function CropGrowthAnalysis() {
         }
       })
 
+      // 환경 데이터 기반 권장사항 생성
+      const environmentRecommendations = []
+      
+      if (environmentData.innerTemperature < 18) {
+        environmentRecommendations.push("온실 내부 온도가 낮습니다. 난방을 강화하세요.")
+      } else if (environmentData.innerTemperature > 32) {
+        environmentRecommendations.push("온실 내부 온도가 높습니다. 환기를 증가시키세요.")
+      }
+
+      if (environmentData.innerHumidity < 40) {
+        environmentRecommendations.push("습도가 낮습니다. 가습기를 가동하세요.")
+      } else if (environmentData.innerHumidity > 80) {
+        environmentRecommendations.push("습도가 높습니다. 제습 또는 환기가 필요합니다.")
+      }
+
+      if (environmentData.ph < 6.0) {
+        environmentRecommendations.push("토양 PH가 낮습니다. 석회질 비료를 추가하세요.")
+      } else if (environmentData.ph > 7.5) {
+        environmentRecommendations.push("토양 PH가 높습니다. 황 성분 비료를 추가하세요.")
+      }
+
+      if (environmentData.ec < 1.0) {
+        environmentRecommendations.push("EC 농도가 낮습니다. 비료 공급을 늘리세요.")
+      } else if (environmentData.ec > 3.0) {
+        environmentRecommendations.push("EC 농도가 높습니다. 물 공급을 늘려 희석하세요.")
+      }
+
+      if (environmentData.dissolvedOxygen < 5.0) {
+        environmentRecommendations.push("용존산소가 부족합니다. 산소 공급을 늘리세요.")
+      }
+
+      const allRecommendations = [
+        "수분 공급량을 10% 증가시키세요",
+        "질소 비료를 추가 공급하는 것을 권장합니다",
+        "잎의 색상 변화를 지속적으로 모니터링하세요",
+        "적절한 광량을 유지해주세요",
+        ...environmentRecommendations
+      ]
+
       const mockResult: AnalysisResult = {
         modelId: selectedModel,
         selectedAnalysisItems: selectedAnalysisItems,
         analysisData,
+        environmentData: { ...environmentData }, // 환경 데이터 포함
         condition: analysisData.condition || "양호",
-        recommendations: [
-          "수분 공급량을 10% 증가시키세요",
-          "질소 비료를 추가 공급하는 것을 권장합니다",
-          "잎의 색상 변화를 지속적으로 모니터링하세요",
-          "적절한 광량을 유지해주세요",
-        ].slice(0, Math.floor(Math.random() * 3) + 1),
+        recommendations: allRecommendations.slice(0, Math.min(allRecommendations.length, Math.floor(Math.random() * 3) + 2)),
         date: new Date().toISOString(),
         comparedImages: selectedAnalysisImages,
         
@@ -1210,6 +1270,59 @@ export default function CropGrowthAnalysis() {
     setSelectedDataRows([])
   }
 
+  // 분석 결과 삭제 함수들
+  const deleteSelectedAnalyses = () => {
+    if (selectedDataRows.length === 0) {
+      alert("삭제할 분석 결과를 선택해주세요.")
+      return
+    }
+
+    if (confirm(`선택된 ${selectedDataRows.length}개의 분석 결과를 삭제하시겠습니까?`)) {
+      setSavedAnalyses(prev => 
+        prev.filter(analysis => !selectedDataRows.includes(analysis.id))
+      )
+      setSelectedDataRows([])
+      alert("선택된 분석 결과가 삭제되었습니다.")
+    }
+  }
+
+  // 식물 종류별 통계 개선 (문제 1, 3 해결)
+  const getPlantTypeStatistics = () => {
+    const allAnalyses = getUserAnalyses()
+    const plantStats: { [key: string]: any } = {}
+
+    plantTypes.forEach(plantType => {
+      const plantAnalyses = allAnalyses.filter(analysis => analysis.plantType === plantType.id)
+      
+      if (plantAnalyses.length > 0) {
+        const healthValues = plantAnalyses.map(a => a.result.plantHealth || 0).filter(h => h > 0)
+        const heightValues = plantAnalyses.map(a => a.result.height || 0).filter(h => h > 0)
+        
+        plantStats[plantType.id] = {
+          name: plantType.name,
+          count: plantAnalyses.length,
+          avgHealth: healthValues.length > 0 ? Math.round(healthValues.reduce((a, b) => a + b, 0) / healthValues.length) : 0,
+          avgHeight: heightValues.length > 0 ? Math.round(heightValues.reduce((a, b) => a + b, 0) / heightValues.length) : 0,
+          maxHealth: healthValues.length > 0 ? Math.max(...healthValues) : 0,
+          minHealth: healthValues.length > 0 ? Math.min(...healthValues) : 0,
+          maxHeight: heightValues.length > 0 ? Math.max(...heightValues) : 0,
+          minHeight: heightValues.length > 0 ? Math.min(...heightValues) : 0,
+          latestDate: plantAnalyses.length > 0 ? plantAnalyses[plantAnalyses.length - 1].date : null
+        }
+      }
+    })
+
+    return plantStats
+  }
+
+  // 환경 데이터 업데이트 함수
+  const updateEnvironmentData = (field: keyof EnvironmentData, value: number) => {
+    setEnvironmentData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -1230,6 +1343,174 @@ export default function CropGrowthAnalysis() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* 왼쪽 패널 */}
           <div className="space-y-6">
+            {/* 스마트팜 환경 데이터 섹션 */}
+            <Card className="border-purple-200">
+              <CardHeader className="bg-purple-50">
+                <CardTitle className="flex items-center gap-2 text-purple-800">
+                  <TrendingUp className="h-5 w-5" />
+                  스마트팜 환경 제어 데이터
+                </CardTitle>
+                <p className="text-sm text-purple-600">실시간 환경 데이터를 입력하여 더 정확한 분석을 받으세요</p>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* 온도 관련 */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">내부온도 (°C)</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={environmentData.innerTemperature}
+                      onChange={(e) => updateEnvironmentData('innerTemperature', parseFloat(e.target.value) || 0)}
+                      className="text-center"
+                      min="0"
+                      max="50"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">외부온도 (°C)</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={environmentData.outerTemperature}
+                      onChange={(e) => updateEnvironmentData('outerTemperature', parseFloat(e.target.value) || 0)}
+                      className="text-center"
+                      min="-20"
+                      max="50"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">근권온도 (°C)</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={environmentData.rootZoneTemperature}
+                      onChange={(e) => updateEnvironmentData('rootZoneTemperature', parseFloat(e.target.value) || 0)}
+                      className="text-center"
+                      min="0"
+                      max="40"
+                    />
+                  </div>
+
+                  {/* 습도 */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">내부습도 (%)</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={environmentData.innerHumidity}
+                      onChange={(e) => updateEnvironmentData('innerHumidity', parseFloat(e.target.value) || 0)}
+                      className="text-center"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+
+                  {/* 일사량 */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">일사량 (W/m²)</Label>
+                    <Input
+                      type="number"
+                      step="1"
+                      value={environmentData.solarRadiation}
+                      onChange={(e) => updateEnvironmentData('solarRadiation', parseFloat(e.target.value) || 0)}
+                      className="text-center"
+                      min="0"
+                      max="1200"
+                    />
+                  </div>
+
+                  {/* 수질 관련 */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">PH</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={environmentData.ph}
+                      onChange={(e) => updateEnvironmentData('ph', parseFloat(e.target.value) || 0)}
+                      className="text-center"
+                      min="0"
+                      max="14"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">EC (dS/m)</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={environmentData.ec}
+                      onChange={(e) => updateEnvironmentData('ec', parseFloat(e.target.value) || 0)}
+                      className="text-center"
+                      min="0"
+                      max="10"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-gray-700">DO (mg/L)</Label>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={environmentData.dissolvedOxygen}
+                      onChange={(e) => updateEnvironmentData('dissolvedOxygen', parseFloat(e.target.value) || 0)}
+                      className="text-center"
+                      min="0"
+                      max="20"
+                    />
+                  </div>
+                </div>
+
+                {/* 환경 상태 표시 */}
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                    <div className={`flex items-center gap-1 ${
+                      environmentData.innerTemperature >= 18 && environmentData.innerTemperature <= 32 
+                        ? 'text-green-600' : 'text-orange-600'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        environmentData.innerTemperature >= 18 && environmentData.innerTemperature <= 32 
+                          ? 'bg-green-500' : 'bg-orange-500'
+                      }`} />
+                      온도: {environmentData.innerTemperature >= 18 && environmentData.innerTemperature <= 32 ? '적정' : '주의'}
+                    </div>
+                    <div className={`flex items-center gap-1 ${
+                      environmentData.innerHumidity >= 40 && environmentData.innerHumidity <= 80 
+                        ? 'text-green-600' : 'text-orange-600'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        environmentData.innerHumidity >= 40 && environmentData.innerHumidity <= 80 
+                          ? 'bg-green-500' : 'bg-orange-500'
+                      }`} />
+                      습도: {environmentData.innerHumidity >= 40 && environmentData.innerHumidity <= 80 ? '적정' : '주의'}
+                    </div>
+                    <div className={`flex items-center gap-1 ${
+                      environmentData.ph >= 6.0 && environmentData.ph <= 7.5 
+                        ? 'text-green-600' : 'text-orange-600'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        environmentData.ph >= 6.0 && environmentData.ph <= 7.5 
+                          ? 'bg-green-500' : 'bg-orange-500'
+                      }`} />
+                      PH: {environmentData.ph >= 6.0 && environmentData.ph <= 7.5 ? '적정' : '주의'}
+                    </div>
+                    <div className={`flex items-center gap-1 ${
+                      environmentData.ec >= 1.0 && environmentData.ec <= 3.0 
+                        ? 'text-green-600' : 'text-orange-600'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        environmentData.ec >= 1.0 && environmentData.ec <= 3.0 
+                          ? 'bg-green-500' : 'bg-orange-500'
+                      }`} />
+                      EC: {environmentData.ec >= 1.0 && environmentData.ec <= 3.0 ? '적정' : '주의'}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* 이미지 업로드 섹션 */}
             <Card className="border-green-200">
               <CardHeader className="bg-green-50">
@@ -2464,6 +2745,50 @@ export default function CropGrowthAnalysis() {
                       </div>
                     )}
                   </div>
+
+                  {/* 환경 데이터 표시 */}
+                  {analysisResult.environmentData && (
+                    <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                      <h5 className="font-medium text-purple-800 mb-3 flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4" />
+                        분석 시점 환경 데이터
+                      </h5>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                        <div className="space-y-1">
+                          <div className="text-gray-600">내부온도</div>
+                          <div className="font-medium">{analysisResult.environmentData.innerTemperature}°C</div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-gray-600">외부온도</div>
+                          <div className="font-medium">{analysisResult.environmentData.outerTemperature}°C</div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-gray-600">습도</div>
+                          <div className="font-medium">{analysisResult.environmentData.innerHumidity}%</div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-gray-600">근권온도</div>
+                          <div className="font-medium">{analysisResult.environmentData.rootZoneTemperature}°C</div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-gray-600">일사량</div>
+                          <div className="font-medium">{analysisResult.environmentData.solarRadiation}W/m²</div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-gray-600">PH</div>
+                          <div className="font-medium">{analysisResult.environmentData.ph}</div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-gray-600">EC</div>
+                          <div className="font-medium">{analysisResult.environmentData.ec}dS/m</div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="text-gray-600">DO</div>
+                          <div className="font-medium">{analysisResult.environmentData.dissolvedOxygen}mg/L</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* 분석 항목별 결과 표시 */}
                   <div className="space-y-4">

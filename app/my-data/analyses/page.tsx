@@ -21,10 +21,22 @@ const STORAGE_KEYS = {
 }
 
 // 인터페이스 정의
+interface EnvironmentData {
+  innerTemperature: number // 내부온도 (°C)
+  outerTemperature: number // 외부온도 (°C)
+  innerHumidity: number // 내부습도 (%)
+  rootZoneTemperature: number // 근권온도 (°C)
+  solarRadiation: number // 일사량 (W/m²)
+  ph: number // PH
+  ec: number // EC (dS/m)
+  dissolvedOxygen: number // DO (mg/L)
+}
+
 interface AnalysisResult {
   modelId: string
   selectedAnalysisItems: string[]
   analysisData: { [key: string]: any }
+  environmentData?: EnvironmentData // 환경 데이터 (선택적)
   condition: string
   recommendations: string[]
   date: string
@@ -316,6 +328,69 @@ export default function AnalysesPage() {
     document.body.removeChild(link)
   }
 
+  // 선택된 분석 결과 삭제 함수
+  const deleteSelected = async () => {
+    if (selectedRows.length === 0) {
+      alert("삭제할 분석 결과를 선택해주세요.")
+      return
+    }
+
+    if (confirm(`선택된 ${selectedRows.length}개의 분석 결과를 삭제하시겠습니까?\n삭제된 데이터는 복구할 수 없습니다.`)) {
+      try {
+        // 현재 저장된 분석 결과 불러오기
+        const currentAnalyses = await loadAnalyses()
+        
+        // 선택된 항목들 제외한 새로운 배열 생성
+        const updatedAnalyses = currentAnalyses.filter(analysis => !selectedRows.includes(analysis.id))
+        
+        // 로컬 스토리지에 저장
+        localStorage.setItem(STORAGE_KEYS.SAVED_ANALYSES, JSON.stringify(updatedAnalyses))
+        
+        // 상태 업데이트
+        setAnalyses(updatedAnalyses)
+        setSelectedRows([])
+        
+        alert(`${selectedRows.length}개의 분석 결과가 삭제되었습니다.`)
+      } catch (error) {
+        console.error("삭제 중 오류 발생:", error)
+        alert("삭제 중 오류가 발생했습니다. 다시 시도해주세요.")
+      }
+    }
+  }
+
+  // 식물 종류별 통계 개선 함수
+  const getPlantTypeStatistics = () => {
+    const plantStats: { [key: string]: any } = {}
+
+    plantTypes.forEach(plantType => {
+      const plantAnalyses = userAnalyses.filter(analysis => analysis.plantType === plantType.id)
+      
+      if (plantAnalyses.length > 0) {
+        const healthValues = plantAnalyses.map(a => {
+          return a.result.plantHealth || a.result.analysisData?.plantHealth || 0
+        }).filter(h => h > 0)
+        
+        const heightValues = plantAnalyses.map(a => {
+          return a.result.height || a.result.analysisData?.height || 0
+        }).filter(h => h > 0)
+        
+        plantStats[plantType.id] = {
+          name: plantType.name,
+          count: plantAnalyses.length,
+          avgHealth: healthValues.length > 0 ? Math.round(healthValues.reduce((a, b) => a + b, 0) / healthValues.length) : 0,
+          avgHeight: heightValues.length > 0 ? Math.round(heightValues.reduce((a, b) => a + b, 0) / heightValues.length) : 0,
+          maxHealth: healthValues.length > 0 ? Math.max(...healthValues) : 0,
+          minHealth: healthValues.length > 0 ? Math.min(...healthValues) : 0,
+          maxHeight: heightValues.length > 0 ? Math.max(...heightValues) : 0,
+          minHeight: heightValues.length > 0 ? Math.min(...heightValues) : 0,
+          latestDate: plantAnalyses.length > 0 ? plantAnalyses[plantAnalyses.length - 1].date : null
+        }
+      }
+    })
+
+    return plantStats
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50">
       <Navbar />
@@ -360,7 +435,7 @@ export default function AnalysesPage() {
                   : 0}
                 %
               </div>
-              <div className="text-sm text-blue-600">평균 건강도</div>
+              <div className="text-sm text-blue-600">전체 평균 건강도</div>
             </CardContent>
           </Card>
           <Card>
@@ -385,10 +460,60 @@ export default function AnalysesPage() {
                   : 0}
                 cm
               </div>
-              <div className="text-sm text-orange-600">평균 키</div>
+              <div className="text-sm text-orange-600">전체 평균 키</div>
             </CardContent>
           </Card>
         </div>
+
+        {/* 식물 종류별 상세 통계 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              식물 종류별 상세 통계
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {(() => {
+                const plantStats = getPlantTypeStatistics()
+                return Object.entries(plantStats).map(([plantId, stats]) => (
+                  <div key={plantId} className="p-4 border rounded-lg bg-gradient-to-br from-green-50 to-emerald-50">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium text-green-800">{stats.name}</h4>
+                      <Badge variant="outline" className="text-xs">
+                        {stats.count}건
+                      </Badge>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">평균 건강도:</span>
+                        <span className="font-medium text-blue-600">{stats.avgHealth}%</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">평균 키:</span>
+                        <span className="font-medium text-orange-600">{stats.avgHeight}cm</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">건강도 범위:</span>
+                        <span className="font-medium text-gray-700">{stats.minHealth}~{stats.maxHealth}%</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">키 범위:</span>
+                        <span className="font-medium text-gray-700">{stats.minHeight}~{stats.maxHeight}cm</span>
+                      </div>
+                      {stats.latestDate && (
+                        <div className="text-xs text-gray-500 mt-2">
+                          최근 분석: {new Date(stats.latestDate).toLocaleDateString("ko-KR")}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              })()}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* 필터 및 검색 */}
         <Card>
@@ -461,10 +586,16 @@ export default function AnalysesPage() {
             {selectedRows.length > 0 && (
               <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
                 <span className="text-sm text-blue-700">{selectedRows.length}개 항목이 선택되었습니다</span>
-                <Button onClick={exportSelected} size="sm" className="bg-blue-600 hover:bg-blue-700">
-                  <Download className="h-4 w-4 mr-2" />
-                  선택 항목 내보내기
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={exportSelected} size="sm" className="bg-blue-600 hover:bg-blue-700">
+                    <Download className="h-4 w-4 mr-2" />
+                    내보내기
+                  </Button>
+                  <Button onClick={deleteSelected} variant="destructive" size="sm">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    삭제
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>
