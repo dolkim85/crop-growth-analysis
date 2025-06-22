@@ -106,13 +106,38 @@ const STORAGE_KEYS = {
   CAMERAS: 'crop-analysis-cameras'
 }
 
-// 이미지를 Base64로 변환하는 함수
-const fileToBase64 = (file: File): Promise<string> => {
+// 이미지를 Base64로 변환하는 함수 (압축 기능 추가)
+const fileToBase64 = (file: File, maxWidth: number = 800, maxHeight: number = 600, quality: number = 0.7): Promise<string> => {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.readAsDataURL(file)
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = error => reject(error)
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    const img = new Image()
+    
+    img.onload = () => {
+      // 원본 크기
+      let { width, height } = img
+      
+      // 최대 크기로 비율을 유지하면서 리사이즈
+      if (width > maxWidth || height > maxHeight) {
+        const ratio = Math.min(maxWidth / width, maxHeight / height)
+        width = width * ratio
+        height = height * ratio
+      }
+      
+      // 캔버스 크기 설정
+      canvas.width = width
+      canvas.height = height
+      
+      // 이미지 그리기
+      ctx?.drawImage(img, 0, 0, width, height)
+      
+      // Base64로 변환 (JPEG 압축 적용)
+      const compressedBase64 = canvas.toDataURL('image/jpeg', quality)
+      resolve(compressedBase64)
+    }
+    
+    img.onerror = () => reject(new Error('이미지 로드 실패'))
+    img.src = URL.createObjectURL(file)
   })
 }
 
@@ -533,14 +558,66 @@ export default function CropGrowthAnalysis() {
     }
   }
 
+  // LocalStorage 용량 확인 함수
+  const getStorageSize = () => {
+    let total = 0
+    for (let key in localStorage) {
+      if (localStorage.hasOwnProperty(key)) {
+        total += localStorage[key].length + key.length
+      }
+    }
+    return total
+  }
+
+  // LocalStorage 정리 함수
+  const cleanupOldData = () => {
+    try {
+      const imageData = JSON.parse(localStorage.getItem(STORAGE_KEYS.UPLOADED_IMAGES) || '[]')
+      const analysisData = JSON.parse(localStorage.getItem(STORAGE_KEYS.SAVED_ANALYSES) || '[]')
+      
+      // 30일 이상 된 데이터 삭제
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+      
+      const recentImages = imageData.filter((img: any) => 
+        new Date(img.timestamp) > thirtyDaysAgo
+      )
+      const recentAnalyses = analysisData.filter((analysis: any) => 
+        new Date(analysis.date) > thirtyDaysAgo
+      )
+      
+      localStorage.setItem(STORAGE_KEYS.UPLOADED_IMAGES, JSON.stringify(recentImages))
+      localStorage.setItem(STORAGE_KEYS.SAVED_ANALYSES, JSON.stringify(recentAnalyses))
+      
+      return recentImages.length !== imageData.length || recentAnalyses.length !== analysisData.length
+    } catch (error) {
+      console.error('데이터 정리 실패:', error)
+      return false
+    }
+  }
+
   // 로컬스토리지에 데이터 저장하는 함수
   const saveToStorage = async (images: UploadedImage[], analyses: SavedAnalysis[], cameras: ObservationCamera[]) => {
     try {
-      // 이미지를 base64로 변환해서 저장
+      // 현재 저장 용량 확인 (5MB = 5,242,880 바이트)
+      const currentSize = getStorageSize()
+      const maxSize = 5 * 1024 * 1024 // 5MB
+      
+      // 용량이 4MB를 초과하면 정리 시도
+      if (currentSize > maxSize * 0.8) {
+        console.log('저장 공간 부족, 오래된 데이터를 정리합니다...')
+        const cleaned = cleanupOldData()
+        if (cleaned) {
+          console.log('오래된 데이터가 정리되었습니다.')
+        }
+      }
+      
+      // 이미지를 압축된 base64로 변환해서 저장
       const imageData = await Promise.all(
         images.map(async (img) => {
           try {
-            const base64 = await fileToBase64(img.file)
+            // 이미지 압축 (최대 800x600, 품질 0.7)
+            const base64 = await fileToBase64(img.file, 800, 600, 0.7)
             return {
               id: img.id,
               base64,
@@ -556,11 +633,36 @@ export default function CropGrowthAnalysis() {
       )
       
       const validImageData = imageData.filter(data => data !== null)
-      localStorage.setItem(STORAGE_KEYS.UPLOADED_IMAGES, JSON.stringify(validImageData))
-      localStorage.setItem(STORAGE_KEYS.SAVED_ANALYSES, JSON.stringify(analyses))
-      localStorage.setItem(STORAGE_KEYS.CAMERAS, JSON.stringify(cameras))
+      
+      // 청크 단위로 저장 시도
+      try {
+        localStorage.setItem(STORAGE_KEYS.UPLOADED_IMAGES, JSON.stringify(validImageData))
+        localStorage.setItem(STORAGE_KEYS.SAVED_ANALYSES, JSON.stringify(analyses))
+        localStorage.setItem(STORAGE_KEYS.CAMERAS, JSON.stringify(cameras))
+      } catch (quotaError) {
+        console.warn('저장 공간이 부족합니다. 추가 정리를 시도합니다...')
+        
+        // 긴급 정리: 가장 오래된 50% 이미지 삭제
+        const sortedImages = validImageData.sort((a: any, b: any) => 
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        )
+        const keepCount = Math.floor(sortedImages.length * 0.5)
+        const reducedImages = sortedImages.slice(-keepCount)
+        
+        try {
+          localStorage.setItem(STORAGE_KEYS.UPLOADED_IMAGES, JSON.stringify(reducedImages))
+          localStorage.setItem(STORAGE_KEYS.SAVED_ANALYSES, JSON.stringify(analyses))
+          localStorage.setItem(STORAGE_KEYS.CAMERAS, JSON.stringify(cameras))
+          
+          alert(`저장 공간 부족으로 오래된 이미지 ${sortedImages.length - keepCount}개가 자동 삭제되었습니다.`)
+        } catch (finalError) {
+          console.error('최종 저장 실패:', finalError)
+          alert('저장 공간이 부족합니다. 일부 이미지를 수동으로 삭제해주세요.')
+        }
+      }
     } catch (error) {
       console.error('데이터 저장 실패:', error)
+      alert('데이터 저장 중 오류가 발생했습니다.')
     }
   }
 
@@ -1151,6 +1253,9 @@ export default function CropGrowthAnalysis() {
                       <Upload className="h-8 w-8 mx-auto mb-2 text-green-500" />
                       <p className="text-green-700">클릭하여 이미지를 업로드하세요</p>
                       <p className="text-sm text-green-500">여러 파일 선택 가능</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        ⚡ 이미지는 자동으로 압축되어 저장됩니다 (최대 800x600)
+                      </p>
                     </Label>
                   </div>
 
@@ -1809,6 +1914,59 @@ export default function CropGrowthAnalysis() {
                         <Database className="h-3 w-3 mr-1" />
                         데이터 내보내기
                       </Button>
+                    </div>
+                  </div>
+
+                  {/* 저장 공간 관리 */}
+                  <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <div className="text-xs font-medium text-yellow-800 mb-2">저장 공간 관리</div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-yellow-700">사용량:</span>
+                        <span className="text-xs font-medium text-yellow-800">
+                          {Math.round(getStorageSize() / 1024)} KB / 5MB
+                        </span>
+                      </div>
+                      <div className="w-full bg-yellow-200 rounded-full h-2">
+                        <div 
+                          className="bg-yellow-500 h-2 rounded-full" 
+                          style={{width: `${Math.min((getStorageSize() / (5 * 1024 * 1024)) * 100, 100)}%`}}
+                        ></div>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="flex-1 text-xs h-7 border-yellow-300 text-yellow-700 hover:bg-yellow-100"
+                          onClick={() => {
+                            const cleaned = cleanupOldData()
+                            if (cleaned) {
+                              alert('30일 이상 된 데이터가 정리되었습니다.')
+                              window.location.reload()
+                            } else {
+                              alert('정리할 오래된 데이터가 없습니다.')
+                            }
+                          }}
+                        >
+                          오래된 데이터 정리
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="flex-1 text-xs h-7 border-red-300 text-red-700 hover:bg-red-100"
+                          onClick={() => {
+                            if (confirm('모든 저장된 데이터를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+                              localStorage.removeItem(STORAGE_KEYS.UPLOADED_IMAGES)
+                              localStorage.removeItem(STORAGE_KEYS.SAVED_ANALYSES)
+                              localStorage.removeItem(STORAGE_KEYS.CAMERAS)
+                              alert('모든 데이터가 삭제되었습니다.')
+                              window.location.reload()
+                            }
+                          }}
+                        >
+                          전체 삭제
+                        </Button>
+                      </div>
                     </div>
                   </div>
 

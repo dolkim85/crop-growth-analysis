@@ -1,6 +1,6 @@
 {
   "name": "crop-growth-analysis",
-  "version": "R.0.0",
+  "version": "R.0.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
