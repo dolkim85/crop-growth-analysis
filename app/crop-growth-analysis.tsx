@@ -771,7 +771,7 @@ export default function CropGrowthAnalysis() {
     const excelData = dataToExport.map((analysis, index) => ({
       '번호': index + 1,
       '식물 종류': plantTypes.find(p => p.id === analysis.plantType)?.name || analysis.plantType,
-      '분석 날짜': formatDate(new Date(analysis.date)),
+      '분석 날짜': `${formatDate(new Date(analysis.date))} ${formatDate(new Date(analysis.date), "HH:mm")}`,
       '상태': analysis.result.condition,
       'AI 모델': AI_MODELS[analysis.result.modelId as keyof typeof AI_MODELS]?.name || analysis.result.modelId,
       '권장사항': analysis.result.recommendations.join('; '),
@@ -915,9 +915,16 @@ export default function CropGrowthAnalysis() {
 
   // 성장 그래프 데이터 생성
   const generateGrowthChartData = (plantType: string) => {
-    const plantAnalyses = savedAnalyses
-      .filter(analysis => analysis.plantType === plantType)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    // 선택된 분석 결과들만 사용 (비교 분석용)
+    const selectedAnalyses = savedAnalyses.filter(analysis => 
+      selectedDataRows.includes(analysis.id) && analysis.plantType === plantType
+    )
+    
+    const plantAnalyses = selectedAnalyses.length > 0 
+      ? selectedAnalyses.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      : savedAnalyses
+          .filter(analysis => analysis.plantType === plantType)
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
     if (plantAnalyses.length === 0) return null
 
@@ -948,8 +955,25 @@ export default function CropGrowthAnalysis() {
   }
 
   // 성장 그래프 표시
-  const showPlantGrowthChart = (plantType: string) => {
-    setSelectedPlantForChart(plantType)
+  const showComparisonAnalysis = () => {
+    if (selectedDataRows.length < 2) {
+      alert("비교 분석을 위해 2개 이상의 분석 결과를 선택해주세요.")
+      return
+    }
+    
+    // 선택된 분석 결과들 가져오기
+    const selectedAnalyses = savedAnalyses.filter(analysis => 
+      selectedDataRows.includes(analysis.id)
+    )
+    
+    // 같은 식물 종류인지 확인
+    const plantTypes = [...new Set(selectedAnalyses.map(a => a.plantType))]
+    if (plantTypes.length > 1) {
+      alert("비교 분석은 같은 식물 종류의 분석 결과만 가능합니다.")
+      return
+    }
+    
+    setSelectedPlantForChart(plantTypes[0])
     setShowGrowthChart(true)
   }
 
@@ -1767,6 +1791,12 @@ export default function CropGrowthAnalysis() {
                       <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg mt-4">
                         <span className="text-sm text-blue-700">{selectedDataRows.length}개 항목이 선택되었습니다</span>
                         <div className="flex gap-2">
+                          {selectedDataRows.length >= 2 && (
+                            <Button onClick={showComparisonAnalysis} size="sm" className="bg-green-600 hover:bg-green-700">
+                              <BarChart3 className="h-4 w-4 mr-2" />
+                              비교분석
+                            </Button>
+                          )}
                           <Button onClick={exportAnalysisData} size="sm" className="bg-blue-600 hover:bg-blue-700">
                             <Download className="h-4 w-4 mr-2" />
                             내보내기
@@ -1825,7 +1855,9 @@ export default function CropGrowthAnalysis() {
                                     <h4 className="font-medium">
                                       {plantTypes.find(p => p.id === analysis.plantType)?.name} 분석
                                     </h4>
-                                    <p className="text-sm text-gray-600">{formatDate(new Date(analysis.date))}</p>
+                                    <p className="text-sm text-gray-600">
+                                      {formatDate(new Date(analysis.date))} {formatDate(new Date(analysis.date), "HH:mm")}
+                                    </p>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -1840,14 +1872,7 @@ export default function CropGrowthAnalysis() {
                                     <Info className="h-3 w-3 mr-1" />
                                     상세보기
                                   </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={() => showPlantGrowthChart(analysis.plantType)}
-                                  >
-                                    <BarChart3 className="h-3 w-3 mr-1" />
-                                    성장그래프
-                                  </Button>
+
                                 </div>
                               </div>
                             </CardContent>
@@ -2288,7 +2313,10 @@ export default function CropGrowthAnalysis() {
               <CardHeader className="flex flex-row items-center justify-between flex-shrink-0">
                 <CardTitle className="text-xl flex items-center gap-2">
                   <BarChart3 className="h-6 w-6" />
-                  {plantTypes.find(p => p.id === selectedPlantForChart)?.name} 성장 분석 그래프
+                  {plantTypes.find(p => p.id === selectedPlantForChart)?.name} 비교 분석 그래프
+                  <Badge variant="secondary" className="ml-2">
+                    {selectedDataRows.length > 0 ? `${selectedDataRows.length}개 항목 비교` : '전체 데이터'}
+                  </Badge>
                 </CardTitle>
                 <Button variant="outline" size="sm" onClick={() => setShowGrowthChart(false)}>
                   <X className="h-4 w-4" />
