@@ -225,6 +225,10 @@ export default function CropGrowthAnalysis() {
   const [cameraIntervals, setCameraIntervals] = useState<{ [cameraId: string]: { interval: number, isActive: boolean } }>({})
   const [selectedCameraPhotos, setSelectedCameraPhotos] = useState<string[]>([])
   const [showCameraPhotos, setShowCameraPhotos] = useState<string | null>(null)
+  
+  // 성장 그래프 상태
+  const [showGrowthChart, setShowGrowthChart] = useState(false)
+  const [selectedPlantForChart, setSelectedPlantForChart] = useState<string>("")
 
   // 식물 종류 데이터
   const plantTypes = [
@@ -478,15 +482,20 @@ export default function CropGrowthAnalysis() {
       const selectedImageObjects = (uploadedImages || []).filter(img => (selectedAnalysisImages || []).includes(img.id))
       const analysisData: { [key: string]: any } = {}
       
-      // 하이브리드 AI 분석 시뮬레이션
+      // 분석 시점 환경 데이터 결정
+      const analysisEnvironmentData = useCurrentEnvironmentData 
+        ? environmentData 
+        : getEnvironmentDataForDateTime(selectedEnvironmentDate, selectedEnvironmentTime)
+      
       console.log("🔍 하이브리드 AI 분석 시작")
+      console.log("🌡️ 분석에 사용할 환경 데이터:", analysisEnvironmentData)
       
       if (backendConnectionStatus === "connected") {
         console.log("🌐 백엔드 AI 서버 분석 모드")
         await new Promise(resolve => setTimeout(resolve, 3000))
       } else {
         console.log("💻 클라이언트 사이드 AI 분석 모드")
-        await performClientSideAnalysis(selectedImageObjects)
+        await performClientSideAnalysis(selectedImageObjects, analysisEnvironmentData)
       }
       
       // 선택된 분석 항목에 따른 결과 생성
@@ -505,14 +514,14 @@ export default function CropGrowthAnalysis() {
         }
       }
 
-      // 분석 결과 생성
+      // 분석 결과 생성 (환경 데이터 포함)
       const result: AnalysisResult = {
         modelId: selectedModel,
         selectedAnalysisItems: selectedAnalysisItems || [],
         analysisData,
-        environmentData,
+        environmentData: analysisEnvironmentData, // 분석 시점의 정확한 환경 데이터 저장
         condition: analysisData.health || "양호",
-        recommendations: generateRecommendations(analysisData) || [],
+        recommendations: generateRecommendations(analysisData, analysisEnvironmentData) || [],
         date: new Date().toISOString(),
         comparedImages: (selectedImageObjects || []).map(img => img.id)
       }
@@ -528,12 +537,23 @@ export default function CropGrowthAnalysis() {
     }
   }
 
-  const performClientSideAnalysis = async (images: UploadedImage[]) => {
+  const performClientSideAnalysis = async (images: UploadedImage[], environmentContext?: EnvironmentData) => {
     console.log("🧠 클라이언트 AI 엔진 실행")
+    console.log("🌡️ 환경 데이터 연동:", environmentContext)
     
     for (const image of images) {
       // Canvas API 기반 픽셀 분석 시뮬레이션
       console.log(`📊 ${image.file.name} 픽셀 분석 중...`)
+      
+      // 환경 데이터 기반 분석 조건 적용
+      if (environmentContext) {
+        console.log(`🌡️ 분석 시점 환경 조건:`)
+        console.log(`   - 내부온도: ${environmentContext.innerTemperature}°C`)
+        console.log(`   - 습도: ${environmentContext.innerHumidity}%`)
+        console.log(`   - pH: ${environmentContext.ph}`)
+        console.log(`   - EC: ${environmentContext.ec}dS/m`)
+      }
+      
       await new Promise(resolve => setTimeout(resolve, 1000))
     }
   }
@@ -583,8 +603,8 @@ export default function CropGrowthAnalysis() {
     return objectResults[itemId] || { status: "정상" }
   }
 
-  const generateRecommendations = (analysisData: any) => {
-    const recommendations = [
+  const generateRecommendations = (analysisData: any, environmentData?: EnvironmentData) => {
+    const baseRecommendations = [
       "현재 환경 조건이 양호합니다.",
       "정기적인 모니터링을 계속해주세요.",
       "수분 공급 상태를 확인해주세요.",
@@ -593,7 +613,38 @@ export default function CropGrowthAnalysis() {
       "온도 관리에 주의하세요."
     ]
     
-    return recommendations.slice(0, Math.floor(Math.random() * 3) + 2)
+    // 환경 데이터 기반 권장사항 추가
+    const environmentRecommendations = []
+    
+    if (environmentData) {
+      if (environmentData.innerTemperature > 30) {
+        environmentRecommendations.push("온도가 높습니다. 냉각 시스템을 가동하세요.")
+      } else if (environmentData.innerTemperature < 18) {
+        environmentRecommendations.push("온도가 낮습니다. 난방을 강화하세요.")
+      }
+      
+      if (environmentData.innerHumidity > 80) {
+        environmentRecommendations.push("습도가 높습니다. 제습 및 환기를 강화하세요.")
+      } else if (environmentData.innerHumidity < 40) {
+        environmentRecommendations.push("습도가 낮습니다. 가습을 고려하세요.")
+      }
+      
+      if (environmentData.ph < 5.5) {
+        environmentRecommendations.push("pH가 낮습니다. 알칼리성 용액을 추가하세요.")
+      } else if (environmentData.ph > 7.5) {
+        environmentRecommendations.push("pH가 높습니다. 산성 용액을 추가하세요.")
+      }
+      
+      if (environmentData.ec < 1.0) {
+        environmentRecommendations.push("영양분 농도가 낮습니다. 양액을 보충하세요.")
+      } else if (environmentData.ec > 3.0) {
+        environmentRecommendations.push("영양분 농도가 높습니다. 물로 희석하세요.")
+      }
+    }
+    
+    // 기본 권장사항과 환경 기반 권장사항 결합
+    const allRecommendations = [...environmentRecommendations, ...baseRecommendations]
+    return allRecommendations.slice(0, Math.floor(Math.random() * 3) + 2)
   }
 
   // 분석 결과 저장
@@ -665,23 +716,27 @@ export default function CropGrowthAnalysis() {
       filtered = filtered.filter(analysis => analysis.plantType === analysisFilter.plantType)
     }
     
-    // 날짜 필터
+    // 날짜 필터 개선
     if (analysisFilter.dateFrom) {
+      const startDate = new Date(analysisFilter.dateFrom + 'T00:00:00')
       filtered = filtered.filter(analysis => 
-        new Date(analysis.date) >= new Date(analysisFilter.dateFrom)
+        new Date(analysis.date) >= startDate
       )
     }
     if (analysisFilter.dateTo) {
+      const endDate = new Date(analysisFilter.dateTo + 'T23:59:59')
       filtered = filtered.filter(analysis => 
-        new Date(analysis.date) <= new Date(analysisFilter.dateTo)
+        new Date(analysis.date) <= endDate
       )
     }
     
-    // 검색어 필터
+    // 검색어 필터 개선
     if (analysisSearchTerm) {
+      const searchLower = analysisSearchTerm.toLowerCase()
       filtered = filtered.filter(analysis => 
-        plantTypes.find(p => p.id === analysis.plantType)?.name.includes(analysisSearchTerm) ||
-        analysis.result.condition.includes(analysisSearchTerm)
+        plantTypes.find(p => p.id === analysis.plantType)?.name.toLowerCase().includes(searchLower) ||
+        analysis.result.condition.toLowerCase().includes(searchLower) ||
+        analysis.result.recommendations.some(rec => rec.toLowerCase().includes(searchLower))
       )
     }
     
@@ -708,16 +763,39 @@ export default function CropGrowthAnalysis() {
     }
   }
 
-  // 분석 데이터 내보내기
+  // 분석 데이터 엑셀 내보내기
   const exportAnalysisData = () => {
     const dataToExport = getFilteredAnalyses()
-    const jsonData = JSON.stringify(dataToExport, null, 2)
-    const blob = new Blob([jsonData], { type: 'application/json' })
+    
+    // 엑셀 형식에 맞게 데이터 변환
+    const excelData = dataToExport.map((analysis, index) => ({
+      '번호': index + 1,
+      '식물 종류': plantTypes.find(p => p.id === analysis.plantType)?.name || analysis.plantType,
+      '분석 날짜': formatDate(new Date(analysis.date)),
+      '상태': analysis.result.condition,
+      'AI 모델': AI_MODELS[analysis.result.modelId as keyof typeof AI_MODELS]?.name || analysis.result.modelId,
+      '권장사항': analysis.result.recommendations.join('; '),
+      '환경 온도': analysis.result.environmentData?.innerTemperature?.toFixed(1) + '°C' || 'N/A',
+      '환경 습도': analysis.result.environmentData?.innerHumidity?.toFixed(0) + '%' || 'N/A',
+      'pH': analysis.result.environmentData?.ph?.toFixed(1) || 'N/A',
+      'EC': analysis.result.environmentData?.ec?.toFixed(1) + 'dS/m' || 'N/A'
+    }))
+
+    // CSV 형식으로 변환 (엑셀에서 열 수 있음)
+    const headers = Object.keys(excelData[0] || {})
+    const csvContent = [
+      headers.join(','),
+      ...excelData.map(row => headers.map(header => `"${row[header as keyof typeof row]}"`).join(','))
+    ].join('\n')
+
+    // BOM 추가 (한글 깨짐 방지)
+    const BOM = '\uFEFF'
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     
     const link = document.createElement('a')
     link.href = url
-    link.download = `crop_analysis_${new Date().toISOString().split('T')[0]}.json`
+    link.download = `작물분석데이터_${new Date().toISOString().split('T')[0]}.csv`
     link.click()
     
     URL.revokeObjectURL(url)
@@ -835,6 +913,46 @@ export default function CropGrowthAnalysis() {
     return closest || environmentData
   }
 
+  // 성장 그래프 데이터 생성
+  const generateGrowthChartData = (plantType: string) => {
+    const plantAnalyses = savedAnalyses
+      .filter(analysis => analysis.plantType === plantType)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+    if (plantAnalyses.length === 0) return null
+
+    return {
+      plantName: plantTypes.find(p => p.id === plantType)?.name || plantType,
+      totalAnalyses: plantAnalyses.length,
+      dateRange: {
+        start: formatDate(new Date(plantAnalyses[0].date)),
+        end: formatDate(new Date(plantAnalyses[plantAnalyses.length - 1].date))
+      },
+      healthTrend: plantAnalyses.map((analysis, index) => ({
+        date: formatDate(new Date(analysis.date)),
+        condition: analysis.result.condition,
+        score: analysis.result.condition === "양호" ? 90 + Math.random() * 10 : 
+               analysis.result.condition === "보통" ? 60 + Math.random() * 20 : 
+               30 + Math.random() * 20,
+        temperature: analysis.result.environmentData?.innerTemperature || 25,
+        humidity: analysis.result.environmentData?.innerHumidity || 65,
+        ph: analysis.result.environmentData?.ph || 6.5
+      })),
+      recommendations: plantAnalyses.reduce((acc, analysis) => {
+        analysis.result.recommendations.forEach(rec => {
+          if (!acc.includes(rec)) acc.push(rec)
+        })
+        return acc
+      }, [] as string[]).slice(0, 5)
+    }
+  }
+
+  // 성장 그래프 표시
+  const showPlantGrowthChart = (plantType: string) => {
+    setSelectedPlantForChart(plantType)
+    setShowGrowthChart(true)
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -900,13 +1018,13 @@ export default function CropGrowthAnalysis() {
                 <TabsTrigger value="data-management" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
                   <div className="flex items-center gap-2">
                     <Database className="h-4 w-4" />
-                    데이터 관리
+                    작물 데이터
                   </div>
                 </TabsTrigger>
                 <TabsTrigger value="observation-camera" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
                   <div className="flex items-center gap-2">
                     <Camera className="h-4 w-4" />
-                    관찰 카메라
+                    실시간 모니터링
                   </div>
                 </TabsTrigger>
                 <TabsTrigger value="settings" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
@@ -938,7 +1056,7 @@ export default function CropGrowthAnalysis() {
                           <Checkbox
                             id="current-data"
                             checked={useCurrentEnvironmentData}
-                            onCheckedChange={setUseCurrentEnvironmentData}
+                            onCheckedChange={(checked) => setUseCurrentEnvironmentData(checked === true)}
                           />
                           <Label htmlFor="current-data">현재 환경 데이터 사용</Label>
                         </div>
@@ -1722,6 +1840,14 @@ export default function CropGrowthAnalysis() {
                                     <Info className="h-3 w-3 mr-1" />
                                     상세보기
                                   </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => showPlantGrowthChart(analysis.plantType)}
+                                  >
+                                    <BarChart3 className="h-3 w-3 mr-1" />
+                                    성장그래프
+                                  </Button>
                                 </div>
                               </div>
                             </CardContent>
@@ -1733,117 +1859,183 @@ export default function CropGrowthAnalysis() {
                 </Card>
               </TabsContent>
 
-              {/* 관찰 카메라 탭 */}
+              {/* 실시간 모니터링 탭 */}
               <TabsContent value="observation-camera" className="space-y-6 p-6">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-2xl font-bold text-gray-800">스마트 관찰 카메라 시스템</h3>
-                  <Button onClick={addCamera} className="bg-blue-600 hover:bg-blue-700">
-                    <Camera className="h-4 w-4 mr-2" />
-                    카메라 추가
-                  </Button>
+                  <h3 className="text-2xl font-bold text-gray-800">실시간 모니터링 시스템</h3>
+                  <Badge variant="default" className="bg-green-600">
+                    실시간 관찰 모드
+                  </Badge>
                 </div>
 
-                {cameras.length === 0 ? (
-                  <Card>
-                    <CardContent className="text-center py-12">
-                      <Camera className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                      <h4 className="text-lg font-medium text-gray-600 mb-2">관찰 카메라가 없습니다</h4>
-                      <p className="text-gray-500 mb-4">새 카메라를 추가하여 자동 촬영을 시작하세요.</p>
-                      <Button onClick={addCamera} className="bg-blue-600 hover:bg-blue-700">
-                        <Plus className="h-4 w-4 mr-2" />
-                        첫 번째 카메라 추가
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {cameras.map((camera) => (
-                      <Card key={camera.id} className="border-blue-200">
-                        <CardHeader className="bg-blue-50">
-                          <div className="flex items-center justify-between">
-                            <CardTitle className="flex items-center gap-2 text-blue-800">
-                              <Camera className="h-5 w-5" />
-                              {camera.name}
-                            </CardTitle>
-                            <div className="flex items-center gap-2">
-                              <Badge variant={camera.isActive ? "default" : "secondary"}>
-                                {camera.isActive ? "촬영중" : "대기중"}
-                              </Badge>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => deleteCamera(camera.id)}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="p-4">
-                          <div className="space-y-4">
-                            <div className="grid grid-cols-3 gap-4 text-sm">
-                              <div className="text-center">
-                                <div className="text-gray-600">사진 수</div>
-                                <div className="font-bold text-blue-600">{camera.photos.length}개</div>
-                              </div>
-                              <div className="text-center">
-                                <div className="text-gray-600">촬영 간격</div>
-                                <div className="font-bold text-green-600">{camera.interval || 60}분마다</div>
-                              </div>
-                              <div className="text-center">
-                                <div className="text-gray-600">마지막 촬영</div>
-                                <div className="font-bold text-orange-600">
-                                  {camera.photos.length > 0 
-                                    ? formatDate(camera.photos[camera.photos.length - 1].date, "HH:mm")
-                                    : "없음"
-                                  }
-                                </div>
-                              </div>
-                            </div>
+                {/* 실시간 카메라 뷰 */}
+                <Card className="border-green-200">
+                  <CardHeader className="bg-green-50">
+                    <CardTitle className="flex items-center gap-2 text-green-800">
+                      <Camera className="h-5 w-5" />
+                      실시간 카메라 영상
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="aspect-video bg-gray-900 rounded-lg flex items-center justify-center mb-4">
+                      <div className="text-center text-white">
+                        <Camera className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                        <p className="text-lg font-medium">실시간 카메라 영상</p>
+                        <p className="text-sm opacity-75">카메라 연결 대기 중...</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-4 gap-4 text-sm">
+                      <div className="text-center">
+                        <div className="text-gray-600">카메라 상태</div>
+                        <Badge variant="default" className="bg-green-600">연결됨</Badge>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-gray-600">해상도</div>
+                        <div className="font-bold">1920x1080</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-gray-600">프레임률</div>
+                        <div className="font-bold">30 FPS</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-gray-600">연결 시간</div>
+                        <div className="font-bold">00:45:23</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                            <div className="flex items-center gap-2">
-                              <Label className="text-sm">촬영 간격:</Label>
-                              <Input
-                                type="number"
-                                min="1"
-                                max="1440"
-                                value={camera.interval || 60}
-                                onChange={(e) => setCameraInterval(camera.id, parseInt(e.target.value))}
-                                className="w-20"
-                              />
-                              <span className="text-sm text-gray-600">분마다</span>
-                            </div>
+                {/* 실시간 환경 데이터 */}
+                <Card className="border-blue-200">
+                  <CardHeader className="bg-blue-50">
+                    <CardTitle className="flex items-center gap-2 text-blue-800">
+                      <TrendingUp className="h-5 w-5" />
+                      실시간 환경 모니터링
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
+                      <div className="text-center">
+                        <div className="flex items-center justify-center mb-1">
+                          <Thermometer className="h-4 w-4 text-red-500 mr-1" />
+                          <Label className="text-sm text-gray-600">내부온도</Label>
+                        </div>
+                        <div className="text-lg font-bold text-red-600">
+                          {environmentData.innerTemperature.toFixed(1)}°C
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="flex items-center justify-center mb-1">
+                          <Thermometer className="h-4 w-4 text-red-400 mr-1" />
+                          <Label className="text-sm text-gray-600">외부온도</Label>
+                        </div>
+                        <div className="text-lg font-bold text-red-500">
+                          {environmentData.outerTemperature.toFixed(1)}°C
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="flex items-center justify-center mb-1">
+                          <Thermometer className="h-4 w-4 text-orange-500 mr-1" />
+                          <Label className="text-sm text-gray-600">근권온도</Label>
+                        </div>
+                        <div className="text-lg font-bold text-orange-600">
+                          {environmentData.rootZoneTemperature.toFixed(1)}°C
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="flex items-center justify-center mb-1">
+                          <Droplets className="h-4 w-4 text-blue-500 mr-1" />
+                          <Label className="text-sm text-gray-600">내부습도</Label>
+                        </div>
+                        <div className="text-lg font-bold text-blue-600">
+                          {environmentData.innerHumidity.toFixed(0)}%
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="flex items-center justify-center mb-1">
+                          <Sun className="h-4 w-4 text-yellow-500 mr-1" />
+                          <Label className="text-sm text-gray-600">일사량</Label>
+                        </div>
+                        <div className="text-lg font-bold text-yellow-600">
+                          {environmentData.solarRadiation.toFixed(0)}W/m²
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="flex items-center justify-center mb-1">
+                          <div className="w-3 h-3 bg-green-500 rounded-full mr-1"></div>
+                          <Label className="text-sm text-gray-600">PH</Label>
+                        </div>
+                        <div className="text-lg font-bold text-green-600">
+                          {environmentData.ph.toFixed(1)}
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="flex items-center justify-center mb-1">
+                          <Zap className="h-4 w-4 text-purple-500 mr-1" />
+                          <Label className="text-sm text-gray-600">EC</Label>
+                        </div>
+                        <div className="text-lg font-bold text-purple-600">
+                          {environmentData.ec.toFixed(1)}dS/m
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="flex items-center justify-center mb-1">
+                          <div className="w-3 h-3 bg-teal-500 rounded-full mr-1"></div>
+                          <Label className="text-sm text-gray-600">DO</Label>
+                        </div>
+                        <div className="text-lg font-bold text-teal-600">
+                          {environmentData.dissolvedOxygen.toFixed(1)}mg/L
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-4 text-center">
+                      <p className="text-sm text-gray-500">
+                        마지막 업데이트: {formatDate(environmentData.timestamp)} {formatDate(environmentData.timestamp, "HH:mm")}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                variant={camera.isActive ? "destructive" : "default"}
-                                onClick={() => toggleCameraAutoCapture(camera.id)}
-                                className="flex-1"
-                              >
-                                {camera.isActive ? (
-                                  <>
-                                    <Square className="h-3 w-3 mr-1" />
-                                    중지
-                                  </>
-                                ) : (
-                                  <>
-                                    <Play className="h-3 w-3 mr-1" />
-                                    시작
-                                  </>
-                                )}
-                              </Button>
-                              <Button size="sm" variant="outline" className="flex-1">
-                                <Images className="h-3 w-3 mr-1" />
-                                갤러리
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
+                {/* 작물 상태 알림 */}
+                <Card className="border-orange-200">
+                  <CardHeader className="bg-orange-50">
+                    <CardTitle className="flex items-center gap-2 text-orange-800">
+                      <AlertTriangle className="h-5 w-5" />
+                      실시간 상태 알림
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <div>
+                          <p className="font-medium text-green-800">환경 상태 양호</p>
+                          <p className="text-sm text-green-600">모든 환경 지표가 적정 범위 내에 있습니다.</p>
+                        </div>
+                        <Badge variant="default" className="bg-green-600 ml-auto">정상</Badge>
+                      </div>
+                      
+                      <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <div>
+                          <p className="font-medium text-blue-800">성장 단계 모니터링</p>
+                          <p className="text-sm text-blue-600">현재 영양생장기 단계로 추정됩니다.</p>
+                        </div>
+                        <Badge variant="secondary" className="ml-auto">관찰중</Badge>
+                      </div>
+                      
+                      <div className="flex items-center gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                        <div>
+                          <p className="font-medium text-yellow-800">일사량 주의</p>
+                          <p className="text-sm text-yellow-600">오후 시간대 일사량이 높습니다. 차광막 고려하세요.</p>
+                        </div>
+                        <Badge variant="outline" className="text-yellow-700 border-yellow-300 ml-auto">주의</Badge>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </TabsContent>
 
               {/* 시스템 설정 탭 */}
@@ -2084,6 +2276,171 @@ export default function CropGrowthAnalysis() {
                     </div>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* 성장 그래프 모달 */}
+        {showGrowthChart && selectedPlantForChart && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-6xl max-h-[90vh] flex flex-col">
+              <CardHeader className="flex flex-row items-center justify-between flex-shrink-0">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <BarChart3 className="h-6 w-6" />
+                  {plantTypes.find(p => p.id === selectedPlantForChart)?.name} 성장 분석 그래프
+                </CardTitle>
+                <Button variant="outline" size="sm" onClick={() => setShowGrowthChart(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </CardHeader>
+              <CardContent className="flex-1 overflow-y-auto p-6">
+                {(() => {
+                  const chartData = generateGrowthChartData(selectedPlantForChart)
+                  
+                  if (!chartData) {
+                    return (
+                      <div className="text-center py-12">
+                        <BarChart3 className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                        <h4 className="text-lg font-medium text-gray-600 mb-2">분석 데이터가 부족합니다</h4>
+                        <p className="text-gray-500">이 식물 종류에 대한 분석 결과가 없습니다.</p>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div className="space-y-6">
+                      {/* 개요 정보 */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Card className="border-blue-200">
+                          <CardContent className="p-4 text-center">
+                            <div className="text-2xl font-bold text-blue-600">{chartData.totalAnalyses}</div>
+                            <div className="text-sm text-gray-600">총 분석 횟수</div>
+                          </CardContent>
+                        </Card>
+                        <Card className="border-green-200">
+                          <CardContent className="p-4 text-center">
+                            <div className="text-2xl font-bold text-green-600">{chartData.dateRange.start}</div>
+                            <div className="text-sm text-gray-600">시작 날짜</div>
+                          </CardContent>
+                        </Card>
+                        <Card className="border-orange-200">
+                          <CardContent className="p-4 text-center">
+                            <div className="text-2xl font-bold text-orange-600">{chartData.dateRange.end}</div>
+                            <div className="text-sm text-gray-600">최근 분석</div>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      {/* 건강 상태 추이 */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <TrendingUp className="h-5 w-5" />
+                            건강 상태 추이
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-4">
+                            {chartData.healthTrend.map((data, index) => (
+                              <div key={index} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                                <div className="w-20 text-sm text-gray-600">{data.date}</div>
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-sm font-medium">{data.condition}</span>
+                                    <span className="text-sm text-gray-600">{data.score.toFixed(0)}점</span>
+                                  </div>
+                                  <Progress value={data.score} className="h-2" />
+                                </div>
+                                <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
+                                  <div>온도: {data.temperature.toFixed(1)}°C</div>
+                                  <div>습도: {data.humidity.toFixed(0)}%</div>
+                                  <div>pH: {data.ph.toFixed(1)}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* 환경 데이터 분석 */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Thermometer className="h-5 w-5" />
+                            환경 데이터 분석
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="p-4 bg-red-50 rounded-lg">
+                              <h4 className="font-medium text-red-800 mb-2">🌡️ 온도 분석</h4>
+                              <div className="space-y-1 text-sm">
+                                <p>평균 온도: <span className="font-medium">
+                                  {(chartData.healthTrend.reduce((acc, d) => acc + d.temperature, 0) / chartData.healthTrend.length).toFixed(1)}°C
+                                </span></p>
+                                <p>최고 온도: <span className="font-medium">
+                                  {Math.max(...chartData.healthTrend.map(d => d.temperature)).toFixed(1)}°C
+                                </span></p>
+                                <p>최저 온도: <span className="font-medium">
+                                  {Math.min(...chartData.healthTrend.map(d => d.temperature)).toFixed(1)}°C
+                                </span></p>
+                              </div>
+                            </div>
+                            <div className="p-4 bg-blue-50 rounded-lg">
+                              <h4 className="font-medium text-blue-800 mb-2">💧 습도 분석</h4>
+                              <div className="space-y-1 text-sm">
+                                <p>평균 습도: <span className="font-medium">
+                                  {(chartData.healthTrend.reduce((acc, d) => acc + d.humidity, 0) / chartData.healthTrend.length).toFixed(0)}%
+                                </span></p>
+                                <p>최고 습도: <span className="font-medium">
+                                  {Math.max(...chartData.healthTrend.map(d => d.humidity)).toFixed(0)}%
+                                </span></p>
+                                <p>최저 습도: <span className="font-medium">
+                                  {Math.min(...chartData.healthTrend.map(d => d.humidity)).toFixed(0)}%
+                                </span></p>
+                              </div>
+                            </div>
+                            <div className="p-4 bg-green-50 rounded-lg">
+                              <h4 className="font-medium text-green-800 mb-2">⚗️ pH 분석</h4>
+                              <div className="space-y-1 text-sm">
+                                <p>평균 pH: <span className="font-medium">
+                                  {(chartData.healthTrend.reduce((acc, d) => acc + d.ph, 0) / chartData.healthTrend.length).toFixed(1)}
+                                </span></p>
+                                <p>최고 pH: <span className="font-medium">
+                                  {Math.max(...chartData.healthTrend.map(d => d.ph)).toFixed(1)}
+                                </span></p>
+                                <p>최저 pH: <span className="font-medium">
+                                  {Math.min(...chartData.healthTrend.map(d => d.ph)).toFixed(1)}
+                                </span></p>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* 주요 권장사항 */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <CheckCircle className="h-5 w-5" />
+                            주요 관리 권장사항
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            {chartData.recommendations.map((rec, index) => (
+                              <div key={index} className="flex items-start gap-2 p-2 bg-green-50 rounded">
+                                <CheckCircle className="h-4 w-4 mt-0.5 text-green-500 flex-shrink-0" />
+                                <span className="text-sm">{rec}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )
+                })()}
               </CardContent>
             </Card>
           </div>
