@@ -94,7 +94,15 @@ const fileToBase64 = (file: File): Promise<string> => {
 
 // Base64를 File로 변환하는 함수
 const base64ToFile = (base64: string, filename: string): File => {
+  if (!base64 || typeof base64 !== 'string') {
+    throw new Error('Invalid base64 string')
+  }
+  
   const arr = base64.split(',')
+  if (arr.length < 2) {
+    throw new Error('Invalid base64 format')
+  }
+  
   const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg'
   const bstr = atob(arr[1])
   let n = bstr.length
@@ -232,36 +240,64 @@ export default function CropGrowthAnalysis() {
       // 업로드된 이미지 로드
       const storedImages = localStorage.getItem(STORAGE_KEYS.UPLOADED_IMAGES)
       if (storedImages) {
-        const imageData = JSON.parse(storedImages)
-        const restoredImages = await Promise.all(
-          imageData.map(async (item: any) => {
+        try {
+          const imageData = JSON.parse(storedImages)
+          if (Array.isArray(imageData)) {
+            const restoredImages = await Promise.all(
+              imageData.map(async (item: any) => {
             try {
+              // base64와 fileName이 유효한지 확인
+              if (!item.base64 || !item.fileName || !item.id) {
+                console.warn('Invalid image data:', item)
+                return null
+              }
+              
               const file = base64ToFile(item.base64, item.fileName)
               return {
                 id: item.id,
                 file,
                 url: item.base64, // base64를 URL로 사용
-                timestamp: new Date(item.timestamp)
+                timestamp: new Date(item.timestamp || new Date())
               }
             } catch (error) {
-              console.error('이미지 복원 실패:', error)
+              console.error('이미지 복원 실패:', error, item)
               return null
             }
           })
-        )
-        setUploadedImages(restoredImages.filter(img => img !== null) as UploadedImage[])
+            )
+            setUploadedImages(restoredImages.filter(img => img !== null) as UploadedImage[])
+          } else {
+            console.warn('Invalid image data format in localStorage')
+          }
+        } catch (parseError) {
+          console.error('Failed to parse stored images:', parseError)
+        }
       }
 
       // 분석 결과 로드
       const storedAnalyses = localStorage.getItem(STORAGE_KEYS.SAVED_ANALYSES)
       if (storedAnalyses) {
-        setSavedAnalyses(JSON.parse(storedAnalyses))
+        try {
+          const analysesData = JSON.parse(storedAnalyses)
+          if (Array.isArray(analysesData)) {
+            setSavedAnalyses(analysesData)
+          }
+        } catch (parseError) {
+          console.error('Failed to parse stored analyses:', parseError)
+        }
       }
 
       // 카메라 정보 로드
       const storedCameras = localStorage.getItem(STORAGE_KEYS.CAMERAS)
       if (storedCameras) {
-        setCameras(JSON.parse(storedCameras))
+        try {
+          const camerasData = JSON.parse(storedCameras)
+          if (Array.isArray(camerasData)) {
+            setCameras(camerasData)
+          }
+        } catch (parseError) {
+          console.error('Failed to parse stored cameras:', parseError)
+        }
       }
     } catch (error) {
       console.error('데이터 로드 실패:', error)

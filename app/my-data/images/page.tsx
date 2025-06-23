@@ -168,10 +168,26 @@ export default function ImagesPage() {
     return size
   }
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string | undefined | null) => {
+    if (!date) {
+      return {
+        date: "-",
+        time: "-"
+      }
+    }
+    
+    const dateObj = date instanceof Date ? date : new Date(date)
+    
+    if (isNaN(dateObj.getTime())) {
+      return {
+        date: "-",
+        time: "-"
+      }
+    }
+    
     return {
-      date: date.toLocaleDateString("ko-KR"),
-      time: date.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
+      date: dateObj.toLocaleDateString("ko-KR"),
+      time: dateObj.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
     }
   }
 
