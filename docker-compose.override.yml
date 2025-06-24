@@ -1,0 +1,26 @@
+# 개발 환경용 Docker Compose 오버라이드
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder  # 개발 모드
+    command: npm run dev
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    
+  backend:
+    command: python run.py  # 개발 모드에서는 Flask 개발 서버 사용
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=true
+    volumes:
+      - ./backend:/app
+      - ./backend/uploads:/app/uploads
+      - ./backend/models:/app/models
+      - ./backend/logs:/app/logs 
