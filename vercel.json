@@ -4,22 +4,34 @@
   "public": true,
   "builds": [
     {
-      "src": "package.json",
+      "src": "next.config.mjs",
       "use": "@vercel/next"
+    },
+    {
+      "src": "api/*.py",
+      "use": "@vercel/python"
     }
   ],
   "routes": [
+    {
+      "src": "/api/health",
+      "dest": "/api/health.py"
+    },
+    {
+      "src": "/api/analyze",
+      "dest": "/api/analyze.py"
+    },
     {
       "src": "/(.*)",
       "dest": "/$1"
     }
   ],
   "env": {
-    "NODE_ENV": "production"
+    "NEXT_PUBLIC_API_URL": "https://crop-growth-analysis-j02bu0gsn-guendolkim-6814s-projects.vercel.app"
   },
   "functions": {
-    "app/**/*.js": {
-      "runtime": "nodejs22.x"
+    "api/*.py": {
+      "runtime": "python3.9"
     }
   }
 } 
