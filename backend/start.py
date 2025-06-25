@@ -102,9 +102,13 @@ def health():
         "initialization": INITIALIZATION_STATUS
     })
 
-@app.route('/api/v1/health', methods=['GET'])
+@app.route('/api/v1/health', methods=['GET', 'OPTIONS'])
 def health_v1():
     """API v1 헬스체크"""
+    if request.method == 'OPTIONS':
+        # CORS preflight 요청 처리
+        return '', 200
+        
     if SERVER_READY:
         return jsonify({
             "status": "success",
@@ -119,9 +123,13 @@ def health_v1():
             "version": "1.4.0-optimized"
         }), 202  # 202 Accepted (처리 중)
 
-@app.route('/api/v1/analyze', methods=['POST'])
+@app.route('/api/v1/analyze', methods=['POST', 'OPTIONS'])
 def analyze():
     """이미지 분석 API - 서버 준비 후에만 실행"""
+    if request.method == 'OPTIONS':
+        # CORS preflight 요청 처리
+        return '', 200
+        
     if not SERVER_READY:
         return jsonify({
             "status": "error",
