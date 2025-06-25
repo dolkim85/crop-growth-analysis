@@ -1,0 +1,12 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "python run.py"
+healthcheckPath = "/api/v2/health"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+
+[variables]
+FLASK_ENV = "production"
+PORT = "8000" 

@@ -1,0 +1,45 @@
+# 🌱 스마트팜 작물 성장 분석 시스템 V2.0 백엔드
+# 프론트엔드 메뉴 완전 대응 백엔드 시스템
+
+# 웹 프레임워크
+Flask==3.0.0
+flask-cors==4.0.0
+Werkzeug==3.0.1
+
+# 환경 변수 관리
+python-dotenv==1.0.0
+
+# 이미지 처리 및 AI
+opencv-python==4.9.0.80
+Pillow==10.2.0
+numpy==1.26.3
+scikit-learn==1.4.0
+matplotlib==3.8.2
+
+# 무료 AI 모델 및 API
+transformers==4.36.2
+torch==2.1.2
+torchvision==0.16.2
+requests==2.31.0
+
+# 데이터베이스
+SQLAlchemy==2.0.25
+Flask-SQLAlchemy==3.1.1
+
+# 파일 처리
+uuid==1.30
+
+# 날짜 및 시간
+python-dateutil==2.8.2
+
+# 로깅
+loguru==0.7.2
+
+# 유틸리티
+typing-extensions==4.9.0
+dataclasses-json==0.6.3
+
+# 개발 도구
+pytest==7.4.4
+black==23.12.1
+flake8==7.0.0 

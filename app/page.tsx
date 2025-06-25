@@ -143,21 +143,21 @@ export default function HomePage() {
         </section>
 
         {/* CTA 섹션 - 정적 콘텐츠 */}
-        <section className="py-16 px-4 bg-green-600">
-          <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-3xl font-bold text-white mb-6">
-              지금 바로 시작해보세요
-            </h2>
-            <p className="text-xl text-green-100 mb-8">
-              무료 계정을 만들고 스마트팜 분석의 혁신을 경험해보세요.
-            </p>
-            <Link href="/signup">
-              <Button size="lg" variant="secondary" className="text-lg px-8 py-3">
-                무료 회원가입
-              </Button>
-            </Link>
-          </div>
-        </section>
+          <section className="py-16 px-4 bg-green-600">
+            <div className="max-w-4xl mx-auto text-center">
+              <h2 className="text-3xl font-bold text-white mb-6">
+                지금 바로 시작해보세요
+              </h2>
+              <p className="text-xl text-green-100 mb-8">
+                무료 계정을 만들고 스마트팜 분석의 혁신을 경험해보세요.
+              </p>
+              <Link href="/signup">
+                <Button size="lg" variant="secondary" className="text-lg px-8 py-3">
+                  무료 회원가입
+                </Button>
+              </Link>
+            </div>
+          </section>
       </main>
 
       {/* 푸터 - 서버 컴포넌트 */}
