@@ -1,0 +1,14 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "gunicorn --bind 0.0.0.0:$PORT run:app"
+healthcheckPath = "/api/v1/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+
+[variables]
+FLASK_ENV = "production"
+SECRET_KEY = "dolkim85-smartfarm-production-key"
+UPLOAD_FOLDER = "./uploads"
+PYTHON_VERSION = "3.11" 

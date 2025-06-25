@@ -17,18 +17,37 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# 강화된 CORS 설정 - 모든 환경에서 작동
+# 강화된 CORS 설정 - Railway + Vercel 환경 최적화
 CORS(app, resources={
     r"/api/*": {
         "origins": [
+            # 로컬 개발 환경
             "http://localhost:3000", 
             "http://127.0.0.1:3000",
             "http://localhost:3001",
-            "http://127.0.0.1:3001"
+            "http://127.0.0.1:3001",
+            # Vercel 프론트엔드 배포 URL들
+            "https://crop-growth-analysis-9kiks8wbg-guendolkim-6814s-projects.vercel.app",
+            "https://crop-growth-analysis-4cpvvuw4e-guendolkim-6814s-projects.vercel.app",
+            "https://*.vercel.app",
+            # Railway 백엔드 자체 호출
+            "https://dolkim85-smartfarm-backend.up.railway.app",
+            "https://*.railway.app",
+            # 와일드카드로 모든 dolkim85 도메인 허용
+            "https://*.dolkim85.com",
+            "https://*.smartfarm.kr"
         ],
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin"],
-        "supports_credentials": True
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+        "allow_headers": [
+            "Content-Type", 
+            "Authorization", 
+            "Accept", 
+            "Origin",
+            "X-Requested-With",
+            "Access-Control-Allow-Origin"
+        ],
+        "supports_credentials": True,
+        "expose_headers": ["Access-Control-Allow-Origin"]
     }
 })
 
@@ -199,7 +218,7 @@ def internal_error(error):
 
 if __name__ == "__main__":
     try:
-        print("🚀 스마트팜 하이브리드 AI 백엔드 서버 시작 중...")
+        print("🚀 dolkim85 스마트팜 백엔드 V11.4 - Railway 배포 최적화!")
         print("="*80)
         
         # 필수 디렉토리 생성
@@ -207,62 +226,80 @@ if __name__ == "__main__":
         os.makedirs(upload_folder, exist_ok=True)
         logger.info(f"📁 업로드 폴더 확인/생성: {upload_folder}")
         
-        # 확실하게 사용 가능한 포트 찾기
-        port = find_available_port()
+        # Railway 환경변수 포트 우선 사용
+        railway_port = os.getenv("PORT")
+        if railway_port:
+            port = int(railway_port)
+            logger.info(f"🚀 Railway 환경변수 포트 사용: {port}")
+            print(f"🌐 Railway 배포 모드: 포트 {port}")
+        else:
+            # 로컬 개발 환경에서만 포트 검색
+            port = find_available_port()
+            logger.info(f"🏠 로컬 개발 모드: 포트 {port}")
         
         print("\n" + "="*80)
-        print("🎉 백엔드 서버 시작 준비 완료!")
+        print("🎉 dolkim85 백엔드 서버 시작 준비 완료!")
         print("="*80)
         print(f"📡 실행 포트: {port}")
-        print(f"🌐 서버 URL: http://localhost:{port}")
-        print(f"🔗 API 주소: http://localhost:{port}/api/v1/")
+        
+        if railway_port:
+            print(f"🌍 Railway URL: https://dolkim85-smartfarm-backend.up.railway.app")
+            print(f"🔗 API 주소: https://dolkim85-smartfarm-backend.up.railway.app/api/v1/")
+        else:
+            print(f"🌐 로컬 URL: http://localhost:{port}")
+            print(f"🔗 API 주소: http://localhost:{port}/api/v1/")
+            
         print(f"💾 업로드 폴더: {upload_folder}")
         print("="*80)
         print("📝 사용 가능한 API 엔드포인트:")
-        print(f"   • GET  http://localhost:{port}/api/v1/health   - 서버 상태 확인")
-        print(f"   • GET  http://localhost:{port}/api/v1/models   - AI 모델 목록")
-        print(f"   • POST http://localhost:{port}/api/v1/analyze  - 식물 이미지 분석")
+        print("   • GET  /api/v1/health   - 서버 상태 확인")
+        print("   • GET  /api/v1/models   - AI 모델 목록")
+        print("   • POST /api/v1/analyze  - 식물 이미지 분석")
         print("="*80)
-        print("🔧 강화된 CORS 설정: 모든 프론트엔드 접근 허용")
-        print("⚡ 100% 안정성: 포트 충돌 자동 해결")
-        print("🛡️ 프로덕션 준비: 오류 처리 및 로깅 완비")
+        print("🔧 Railway CORS 설정: 전세계 접근 허용")
+        print("⚡ 자동 포트 감지: Railway + 로컬 환경 지원")
+        print("🛡️ 프로덕션 준비: gunicorn 최적화")
         print("="*80)
         
         logger.info(f"🎯 Flask 서버를 포트 {port}에서 시작합니다...")
         
-        # 프로덕션 모드로 실행
+        # Railway/프로덕션 환경에 최적화된 설정
         app.run(
-            debug=False,  # 프로덕션용으로 debug=False
-            host="0.0.0.0", 
+            debug=False,  # 프로덕션용
+            host="0.0.0.0",  # 모든 인터페이스에서 접근 허용
             port=port, 
             use_reloader=False,
-            threaded=True  # 멀티스레드 지원
+            threaded=True  # Railway 멀티스레드 지원
         )
         
     except KeyboardInterrupt:
         logger.info("🛑 서버가 사용자에 의해 중단되었습니다.")
-        print("\n🛑 서버가 안전하게 종료되었습니다.")
+        print("\n🛑 dolkim85 서버가 안전하게 종료되었습니다.")
         
     except Exception as e:
         logger.error(f"❌ 서버 시작 중 치명적 오류: {e}")
         print(f"❌ 서버 시작 실패: {e}")
-        print("🔄 다른 포트에서 재시도 중...")
         
-        # 최후의 재시도 로직
-        try:
-            backup_port = find_available_port()
-            if backup_port != port:
-                logger.info(f"🔄 백업 포트 {backup_port}로 재시도...")
-                print(f"🔄 백업 포트 {backup_port}로 재시도...")
-                app.run(
-                    debug=False, 
-                    host="0.0.0.0", 
-                    port=backup_port, 
-                    use_reloader=False,
-                    threaded=True
-                )
-        except Exception as e2:
-            logger.critical(f"💥 백업 포트에서도 실패: {e2}")
-            print(f"💥 모든 시도 실패: {e2}")
-            print("📧 시스템 관리자에게 문의하세요.")
-            sys.exit(1)
+        if not railway_port:
+            print("🔄 로컬 환경에서 다른 포트로 재시도 중...")
+            try:
+                backup_port = find_available_port()
+                if backup_port != port:
+                    logger.info(f"🔄 백업 포트 {backup_port}로 재시도...")
+                    print(f"🔄 백업 포트 {backup_port}로 재시도...")
+                    app.run(
+                        debug=False, 
+                        host="0.0.0.0", 
+                        port=backup_port, 
+                        use_reloader=False,
+                        threaded=True
+                    )
+            except Exception as e2:
+                logger.critical(f"💥 백업 포트에서도 실패: {e2}")
+                print(f"💥 모든 시도 실패: {e2}")
+        else:
+            logger.critical(f"💥 Railway 배포 실패: {e}")
+            print(f"💥 Railway 배포 실패: {e}")
+            
+        print("📧 dolkim85에게 문의하세요.")
+        sys.exit(1)
