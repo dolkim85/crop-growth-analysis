@@ -37,12 +37,12 @@ def health_v1():
     })
 
 if __name__ == "__main__":
-    # Railway 하드코딩 포트 사용 (검증된 방식)
-    port = 5000
+    # Railway PORT 환경변수 사용 (동적 포트 할당)
+    port = int(os.environ.get("PORT", 5000))
     
-    print(f"🚀 Railway 배포 모드 시작 - 하드코딩 포트: {port}")
+    print(f"🚀 Railway 배포 모드 시작 - 포트: {port}")
     print(f"🌐 서버 주소: 0.0.0.0:{port}")
-    print("📝 Railway는 내부 5000 → 외부 HTTPS로 자동 매핑합니다")
+    print("📝 Railway 환경변수 PORT 사용")
     
     # Flask 서버 시작
     app.run(
