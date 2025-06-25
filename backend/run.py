@@ -173,6 +173,20 @@ def get_models():
             "data": []
         }, 500
 
+@app.route('/', methods=['GET'])
+def root():
+    """Railway 헬스체크를 위한 루트 경로"""
+    return {
+        "status": "success",
+        "message": "dolkim85 스마트팜 백엔드 서버가 실행 중입니다.",
+        "version": "1.3.0-railway-ready",
+        "api_endpoints": {
+            "health": "/api/v1/health",
+            "models": "/api/v1/models", 
+            "analyze": "/api/v1/analyze"
+        }
+    }
+
 @app.route('/api/v1/health', methods=['GET'])
 def health_check():
     """서버 상태 확인 - 강화된 헬스체크"""
