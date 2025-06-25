@@ -675,107 +675,59 @@ export default function CropGrowthAnalysis() {
       
       console.log("🚀 온라인 백엔드 서버 연결 시작...")
       
-      // 1단계: Railway 온라인 서버 우선 연결 (프로덕션 모드)
+      // Railway 온라인 서버만 사용 (로컬 백엔드 완전 제거)
       const RAILWAY_API_URL = "https://dolkim85-smartfarm-backend.up.railway.app"
       
-      try {
-        console.log("🌐 Railway 온라인 서버 연결 중...")
-        const onlineController = new AbortController()
-        const onlineTimeoutId = setTimeout(() => onlineController.abort(), 5000)
+      console.log("🌐 Railway 온라인 서버 연결 중...")
+      const onlineController = new AbortController()
+      const onlineTimeoutId = setTimeout(() => onlineController.abort(), 10000) // 타임아웃 10초로 증가
+      
+      const onlineResponse = await fetch(`${RAILWAY_API_URL}/api/v1/health`, {
+        method: 'GET',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        signal: onlineController.signal,
+        mode: 'cors'
+      })
+      
+      clearTimeout(onlineTimeoutId)
+      
+      if (onlineResponse.ok) {
+        const onlineData = await onlineResponse.json()
+        console.log("✅ Railway 온라인 백엔드 연결 성공!", onlineData)
         
-        const onlineResponse = await fetch(`${RAILWAY_API_URL}/api/v1/health`, {
-          method: 'GET',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          signal: onlineController.signal,
-          mode: 'cors'
-        })
-        
-        clearTimeout(onlineTimeoutId)
-        
-        if (onlineResponse.ok) {
-          const onlineData = await onlineResponse.json()
-          console.log("✅ Railway 온라인 백엔드 연결 성공!", onlineData)
+        // 온라인 서버 정보 저장
+        if (typeof window !== 'undefined') {
+          (window as any).BACKEND_URL = RAILWAY_API_URL
+          (window as any).BACKEND_MODE = "online"
           
-          // 온라인 서버 정보 저장
-          if (typeof window !== 'undefined') {
-            (window as any).BACKEND_URL = RAILWAY_API_URL
-            (window as any).BACKEND_MODE = "online"
-            
-            try {
-              localStorage.setItem('BACKEND_URL', RAILWAY_API_URL)
-              localStorage.setItem('BACKEND_MODE', 'online')
-              localStorage.setItem('BACKEND_STATUS', 'connected')
-            } catch (storageError) {
-              console.warn("온라인 서버 정보 저장 실패:", storageError)
-            }
+          try {
+            localStorage.setItem('BACKEND_URL', RAILWAY_API_URL)
+            localStorage.setItem('BACKEND_MODE', 'online')
+            localStorage.setItem('BACKEND_STATUS', 'connected')
+          } catch (storageError) {
+            console.warn("온라인 서버 정보 저장 실패:", storageError)
           }
-          
-          setBackendConnectionStatus("connected")
-          console.log("🎉 프로덕션 온라인 모드 활성화!")
-          return
         }
-      } catch (onlineError: any) {
-        console.log("⚠️ Railway 온라인 서버 연결 실패:", onlineError.message)
-        console.log("🔄 로컬 백업 서버 검색으로 전환...")
+        
+        setBackendConnectionStatus("connected")
+        console.log("🎉 프로덕션 온라인 모드 활성화!")
+        return
+      } else {
+        throw new Error(`Railway 서버 응답 오류: HTTP ${onlineResponse.status}`)
       }
-      
-      // 2단계: 로컬 백업 서버 검색 (개발 모드)
-      const possiblePorts = [5000, 5001, 5002, 8000, 8001, 3001, 4000]
-      console.log("🏠 로컬 백업 서버 검색 중...")
-      
-      for (const port of possiblePorts) {
-        try {
-          console.log(`🔍 포트 ${port} 확인 중...`)
-          const localController = new AbortController()
-          const localTimeoutId = setTimeout(() => localController.abort(), 2000)
-          
-          const localResponse = await fetch(`http://localhost:${port}/api/v1/health`, {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
-            signal: localController.signal,
-            mode: 'cors'
-          })
-          
-          clearTimeout(localTimeoutId)
-          
-          if (localResponse.ok) {
-            const localData = await localResponse.json()
-            console.log(`✅ 로컬 백엔드 서버 발견! 포트: ${port}`, localData)
-            
-            // 로컬 서버 정보 저장
-            if (typeof window !== 'undefined') {
-              (window as any).BACKEND_URL = `http://localhost:${port}`
-              (window as any).BACKEND_MODE = "local"
-              
-              try {
-                localStorage.setItem('BACKEND_URL', `http://localhost:${port}`)
-                localStorage.setItem('BACKEND_MODE', 'local')
-                localStorage.setItem('BACKEND_PORT', port.toString())
-              } catch (storageError) {
-                console.warn("로컬 서버 정보 저장 실패:", storageError)
-              }
-            }
-            
-            setBackendConnectionStatus("connected")
-            console.log(`🎉 로컬 개발 모드 활성화! 포트: ${port}`)
-            return
-          }
-        } catch (localError: any) {
-          console.log(`❌ 포트 ${port} 실패:`, localError.message)
-        }
-      }
-      
-      // 3단계: 모든 연결 실패
-      console.error("💥 온라인/로컬 백엔드 서버 모두 연결 실패")
-      throw new Error("백엔드 서버에 연결할 수 없습니다. Railway 서버 상태를 확인하세요.")
       
     } catch (error) {
-      console.error("❌ 백엔드 연결 실패:", error)
-      console.log("💻 클라이언트 사이드 AI 모드로 전환합니다")
+      console.error("❌ Railway 백엔드 연결 실패:", error)
+      console.log("💥 온라인 백엔드 서버에 연결할 수 없습니다. Railway 서버 상태를 확인하세요.")
       setBackendConnectionStatus("disconnected")
+      
+      // 사용자에게 명확한 오류 메시지 표시
+      if (typeof window !== 'undefined') {
+        console.error("🚨 백엔드 서버 연결 실패 - 관리자에게 문의하세요")
+      }
     }
   }
 
@@ -885,10 +837,47 @@ export default function CropGrowthAnalysis() {
       console.log("🌡️ 분석에 사용할 환경 데이터:", analysisEnvironmentData)
       
       if (backendConnectionStatus === "connected") {
-        console.log("🌐 백엔드 AI 서버 분석 모드")
-        await new Promise(resolve => setTimeout(resolve, 3000))
+        console.log("🌐 Railway 온라인 백엔드 AI 서버 분석 모드")
+        
+        try {
+          // Railway 백엔드로 실제 이미지 분석 요청
+          const RAILWAY_API_URL = "https://dolkim85-smartfarm-backend.up.railway.app"
+          
+          const formData = new FormData()
+          selectedImageObjects.forEach((image, index) => {
+            formData.append(`image_${index}`, image.file)
+          })
+          formData.append('model_id', selectedModel)
+          formData.append('analysis_items', JSON.stringify(selectedAnalysisItems))
+          formData.append('environment_data', JSON.stringify(analysisEnvironmentData))
+          formData.append('plant_type', selectedPlantType)
+
+          console.log("📤 Railway 백엔드로 분석 요청 전송...")
+          const response = await fetch(`${RAILWAY_API_URL}/api/v1/analyze`, {
+            method: 'POST',
+            body: formData,
+            mode: 'cors'
+          })
+
+          if (response.ok) {
+            const serverResult = await response.json()
+            console.log("✅ Railway 백엔드 분석 성공:", serverResult)
+            
+            // 서버에서 받은 분석 결과를 우선 사용
+            if (serverResult.data) {
+              Object.assign(analysisData, serverResult.data)
+            }
+          } else {
+            throw new Error(`Railway 서버 분석 실패: HTTP ${response.status}`)
+          }
+
+        } catch (serverError) {
+          console.error("⚠️ Railway 백엔드 분석 실패:", serverError)
+          console.log("🔄 클라이언트 사이드 백업 분석으로 전환...")
+          await performClientSideAnalysis(selectedImageObjects, analysisEnvironmentData)
+        }
       } else {
-        console.log("💻 클라이언트 사이드 AI 분석 모드")
+        console.log("🚨 Railway 백엔드 연결 안됨 - 클라이언트 사이드 분석만 실행")
         await performClientSideAnalysis(selectedImageObjects, analysisEnvironmentData)
       }
       
