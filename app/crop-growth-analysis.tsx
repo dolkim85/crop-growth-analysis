@@ -673,114 +673,104 @@ export default function CropGrowthAnalysis() {
     try {
       setBackendConnectionStatus("checking")
       
-      // 하이브리드 모드: 강화된 다중 포트 자동 감지 시스템 (프로덕션 준비)
-      const possiblePorts = [
-        5000, 5001, 5002, 5003, 5004, 5005, 5006, 5007, 5008, 5009,
-        8000, 8001, 8002, 8080, 8081, 8082, 8888, 8889,
-        3001, 3002, 3003, 4000, 4001, 4002,
-        7000, 7001, 7002, 9000, 9001, 9002,
-        6000, 6001, 6002 // 추가 범위
-      ]
+      console.log("🚀 온라인 백엔드 서버 연결 시작...")
       
-      console.log("🔍 프로덕션 백엔드 서버 자동 감지 시작...")
+      // 1단계: Railway 온라인 서버 우선 연결 (프로덕션 모드)
+      const RAILWAY_API_URL = "https://dolkim85-smartfarm-backend.up.railway.app"
       
-      // 병렬 검색으로 성능 향상
-      const portPromises = possiblePorts.map(async (port) => {
-        try {
-          console.log(`🌐 포트 ${port} 병렬 체크 중...`)
-          
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 1500) // 더 빠른 타임아웃
-          
-          const response = await fetch(`http://localhost:${port}/api/v1/health`, {
-            method: 'GET',
-            headers: { 
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            signal: controller.signal,
-            mode: 'cors' // CORS 명시적 설정
-          })
-          
-          clearTimeout(timeoutId)
-          
-          if (response.ok) {
-            const data = await response.json()
-            console.log(`✅ 백엔드 서버 발견! 포트: ${port}`, data)
-            return { port, data }
-          }
-          
-          return null
-        } catch (portError: any) {
-          console.log(`❌ 포트 ${port} 실패:`, portError.message)
-          return null
-        }
-      })
-      
-      // 첫 번째 성공한 포트 사용
       try {
-        const results = await Promise.allSettled(portPromises)
-        const successfulResult = results.find(result => 
-          result.status === 'fulfilled' && result.value !== null
-        ) as PromiseFulfilledResult<{ port: number; data: any } | null>
+        console.log("🌐 Railway 온라인 서버 연결 중...")
+        const onlineController = new AbortController()
+        const onlineTimeoutId = setTimeout(() => onlineController.abort(), 5000)
         
-        if (successfulResult && successfulResult.value) {
-          const { port, data } = successfulResult.value
+        const onlineResponse = await fetch(`${RAILWAY_API_URL}/api/v1/health`, {
+          method: 'GET',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          signal: onlineController.signal,
+          mode: 'cors'
+        })
+        
+        clearTimeout(onlineTimeoutId)
+        
+        if (onlineResponse.ok) {
+          const onlineData = await onlineResponse.json()
+          console.log("✅ Railway 온라인 백엔드 연결 성공!", onlineData)
           
-          // 성공한 포트를 전역 저장
+          // 온라인 서버 정보 저장
           if (typeof window !== 'undefined') {
-            (window as any).BACKEND_PORT = port
-            (window as any).BACKEND_URL = `http://localhost:${port}`
+            (window as any).BACKEND_URL = RAILWAY_API_URL
+            (window as any).BACKEND_MODE = "online"
             
-            // 브라우저 저장소에도 캐시
             try {
-              localStorage.setItem('BACKEND_PORT', port.toString())
-              localStorage.setItem('BACKEND_URL', `http://localhost:${port}`)
+              localStorage.setItem('BACKEND_URL', RAILWAY_API_URL)
+              localStorage.setItem('BACKEND_MODE', 'online')
+              localStorage.setItem('BACKEND_STATUS', 'connected')
             } catch (storageError) {
-              console.warn("로컬 스토리지 저장 실패:", storageError)
+              console.warn("온라인 서버 정보 저장 실패:", storageError)
             }
           }
           
           setBackendConnectionStatus("connected")
-          console.log(`🎉 프로덕션 백엔드 연결 성공: ${port}`)
+          console.log("🎉 프로덕션 온라인 모드 활성화!")
           return
         }
-      } catch (parallelError) {
-        console.error("병렬 포트 검색 오류:", parallelError)
+      } catch (onlineError: any) {
+        console.log("⚠️ Railway 온라인 서버 연결 실패:", onlineError.message)
+        console.log("🔄 로컬 백업 서버 검색으로 전환...")
       }
       
-      // 캐시된 포트 재시도
-      if (typeof window !== 'undefined') {
-        const cachedPort = localStorage.getItem('BACKEND_PORT')
-        if (cachedPort) {
-          try {
-            console.log(`🔄 캐시된 포트 ${cachedPort} 재시도 중...`)
-            const cacheController = new AbortController()
-            const cacheTimeoutId = setTimeout(() => cacheController.abort(), 1000)
-             
-            const response = await fetch(`http://localhost:${cachedPort}/api/v1/health`, {
-              method: 'GET',
-              headers: { 'Content-Type': 'application/json' },
-              signal: cacheController.signal
-            })
-             
-            clearTimeout(cacheTimeoutId)
+      // 2단계: 로컬 백업 서버 검색 (개발 모드)
+      const possiblePorts = [5000, 5001, 5002, 8000, 8001, 3001, 4000]
+      console.log("🏠 로컬 백업 서버 검색 중...")
+      
+      for (const port of possiblePorts) {
+        try {
+          console.log(`🔍 포트 ${port} 확인 중...`)
+          const localController = new AbortController()
+          const localTimeoutId = setTimeout(() => localController.abort(), 2000)
+          
+          const localResponse = await fetch(`http://localhost:${port}/api/v1/health`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            signal: localController.signal,
+            mode: 'cors'
+          })
+          
+          clearTimeout(localTimeoutId)
+          
+          if (localResponse.ok) {
+            const localData = await localResponse.json()
+            console.log(`✅ 로컬 백엔드 서버 발견! 포트: ${port}`, localData)
             
-            if (response.ok) {
-              const data = await response.json()
-              console.log(`✅ 캐시된 포트로 백엔드 재연결 성공: ${cachedPort}`)
-              setBackendConnectionStatus("connected")
-              return
+            // 로컬 서버 정보 저장
+            if (typeof window !== 'undefined') {
+              (window as any).BACKEND_URL = `http://localhost:${port}`
+              (window as any).BACKEND_MODE = "local"
+              
+              try {
+                localStorage.setItem('BACKEND_URL', `http://localhost:${port}`)
+                localStorage.setItem('BACKEND_MODE', 'local')
+                localStorage.setItem('BACKEND_PORT', port.toString())
+              } catch (storageError) {
+                console.warn("로컬 서버 정보 저장 실패:", storageError)
+              }
             }
-          } catch (cacheError) {
-            console.log(`❌ 캐시된 포트 ${cachedPort} 실패:`, cacheError)
+            
+            setBackendConnectionStatus("connected")
+            console.log(`🎉 로컬 개발 모드 활성화! 포트: ${port}`)
+            return
           }
+        } catch (localError: any) {
+          console.log(`❌ 포트 ${port} 실패:`, localError.message)
         }
       }
       
-      // 모든 포트 실패 시 상세 오류 정보
-      console.error("💥 모든 백엔드 포트 검색 실패")
-      throw new Error("프로덕션 백엔드 서버를 찾을 수 없습니다. 서버가 실행 중인지 확인하세요.")
+      // 3단계: 모든 연결 실패
+      console.error("💥 온라인/로컬 백엔드 서버 모두 연결 실패")
+      throw new Error("백엔드 서버에 연결할 수 없습니다. Railway 서버 상태를 확인하세요.")
       
     } catch (error) {
       console.error("❌ 백엔드 연결 실패:", error)

@@ -168,17 +168,17 @@ const plantTypes = [
 
 // AI 모델 정보 매핑
 const modelInfo = {
-  "plant-health-basic": { name: "Plant Health Basic", type: "무료" },
-  "plantnet-basic": { name: "PlantNet Basic", type: "무료" },
-  "tensorflow-plant-free": { name: "TensorFlow Plant Classifier", type: "무료" },
-  "plantix-professional": { name: "Plantix Professional", type: "유료", price: "$29/월" },
-  "cropx-premium": { name: "CropX Premium", type: "유료", price: "$49/월" },
-  "agro-monitoring-pro": { name: "Agro Monitoring Pro", type: "유료", price: "$19/월" },
-  "azure-farmbeats": { name: "Azure FarmBeats", type: "유료", price: "$89/월" },
-  "custom-cnn": { name: "Custom CNN", type: "학습AI" },
-  "transfer-learning": { name: "Transfer Learning", type: "학습AI" },
-  "automl-vision": { name: "AutoML Vision", type: "학습AI" },
-  "ensemble-learning": { name: "Ensemble Learning", type: "학습AI" },
+  "plant-health-basic": { name: "기본 식물 건강도 분석", type: "무료" },
+  "plantnet-basic": { name: "식물 분류 기본", type: "무료" },
+  "tensorflow-plant-free": { name: "딥러닝 식물 분류기", type: "무료" },
+  "plantix-professional": { name: "전문 작물 진단", type: "유료", price: "$29/월" },
+  "cropx-premium": { name: "고급 농작물 분석", type: "유료", price: "$49/월" },
+  "agro-monitoring-pro": { name: "농업 모니터링 전문", type: "유료", price: "$19/월" },
+  "azure-farmbeats": { name: "클라우드 농장 분석", type: "유료", price: "$89/월" },
+  "custom-cnn": { name: "맞춤형 딥러닝", type: "학습AI" },
+  "transfer-learning": { name: "전이 학습 모델", type: "학습AI" },
+  "automl-vision": { name: "자동 시각 학습", type: "학습AI" },
+  "ensemble-learning": { name: "앙상블 학습", type: "학습AI" },
 } as const
 
 // 분석 항목 정보 매핑
