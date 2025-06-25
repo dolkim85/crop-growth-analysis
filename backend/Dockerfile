@@ -18,11 +18,10 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Python 의존성을 먼저 복사하고 설치 (캐시 최적화)
-COPY requirements.txt .
+# Railway 전용 최소 의존성 설치
+COPY requirements-railway.txt .
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir gunicorn
+    && pip install --no-cache-dir -r requirements-railway.txt
 
 # 애플리케이션 코드 복사
 COPY . .
@@ -46,5 +45,5 @@ EXPOSE $PORT
 # 헬스체크 제거 (Railway 자체 헬스체크 사용)
 # HEALTHCHECK는 Railway에서 자체적으로 처리
 
-# Gunicorn으로 애플리케이션 실행
-CMD ["gunicorn", "--config", "gunicorn.conf.py", "run:app"] 
+# Railway 전용 간단한 시작 스크립트 실행
+CMD ["python", "start.py"] 
