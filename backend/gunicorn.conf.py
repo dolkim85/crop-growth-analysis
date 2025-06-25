@@ -2,8 +2,9 @@
 import os
 import multiprocessing
 
-# 서버 소켓
-bind = "0.0.0.0:5000"
+# 서버 소켓 - Railway PORT 환경변수 사용
+port = int(os.environ.get("PORT", 5000))
+bind = f"0.0.0.0:{port}"
 backlog = 2048
 
 # 워커 프로세스

@@ -40,12 +40,11 @@ ENV FLASK_ENV=production \
     TIMEOUT=300 \
     KEEPALIVE=2
 
-# 포트 노출
-EXPOSE 5000
+# 포트 노출 (Railway 동적 포트 사용)
+EXPOSE $PORT
 
-# 헬스체크 추가
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:5000/api/v1/health || exit 1
+# 헬스체크 제거 (Railway 자체 헬스체크 사용)
+# HEALTHCHECK는 Railway에서 자체적으로 처리
 
 # Gunicorn으로 애플리케이션 실행
 CMD ["gunicorn", "--config", "gunicorn.conf.py", "run:app"] 
