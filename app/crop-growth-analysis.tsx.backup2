@@ -39,40 +39,148 @@ import {
   Images
 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
+// import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/components/auth-provider"
 
-// 새로운 모듈들 import
-import { 
-  UploadedImage, 
-  EnvironmentData, 
-  AnalysisResult, 
-  SavedAnalysis, 
-  ObservationCamera
-} from '@/utils/smartfarm/types'
-import { 
-  AI_MODELS, 
-  STORAGE_KEYS, 
-  PLANT_TYPES 
-} from '@/utils/smartfarm/constants'
-import { 
-  formatDate, 
-  generateEnvironmentHistory, 
-  generateMockStringResult, 
-  generateRecommendations 
-} from '@/utils/smartfarm/utils'
-import { useBackend } from '@/hooks/smartfarm/useBackend'
+// 인터페이스 정의
+interface UploadedImage {
+  id: string
+  file: File
+  url: string
+  timestamp: Date
+  userId: string
+}
 
-// 새로운 모듈화된 컴포넌트들 import
-import { EnvironmentDataDisplay } from '@/components/smartfarm/environment/EnvironmentData'
-import { ImageAnalysis } from '@/components/smartfarm/analysis/ImageAnalysis'
-import { FederatedLearning } from '@/components/smartfarm/federated/FederatedLearning'
-import { CameraManagement } from '@/components/smartfarm/camera/CameraManagement'
-import { DataManagement } from '@/components/smartfarm/data/DataManagement'
+interface EnvironmentData {
+  innerTemperature: number
+  outerTemperature: number
+  innerHumidity: number
+  rootZoneTemperature: number
+  solarRadiation: number
+  ph: number
+  ec: number
+  dissolvedOxygen: number
+  timestamp: Date
+}
+
+interface AnalysisResult {
+  modelId: string
+  selectedAnalysisItems: string[]
+  analysisData: { [key: string]: any }
+  environmentData?: EnvironmentData
+  condition: string
+  recommendations: string[]
+  date: string
+  comparedImages?: string[]
+}
+
+interface SavedAnalysis {
+  id: string
+  plantType: string
+  date: string
+  result: AnalysisResult
+  userId: string
+}
+
+interface ObservationCamera {
+  id: string
+  name: string
+  photos: { name: string; date: Date; environmentData?: EnvironmentData }[]
+  userId: string
+  interval?: number
+  isActive?: boolean
+}
+
+// AI 모델 정의
+const AI_MODELS = {
+  "plant-health-basic": {
+    id: "plant-health-basic",
+    name: "TensorFlow 고급 로컬 모델 v2.0",
+    accuracy: 92,
+    status: "online",
+    analysisItems: [
+      { id: "health", name: "건강 상태", type: "string", unit: "" },
+      { id: "disease", name: "질병 감지", type: "object", unit: "" },
+      { id: "growth", name: "성장 분석", type: "object", unit: "" },
+      { id: "nutrition", name: "영양 상태", type: "object", unit: "" }
+    ]
+  },
+  "federated-hybrid": {
+    id: "federated-hybrid",
+    name: "연합학습 하이브리드 AI v1.0",
+    accuracy: 85, // 기본 85%에서 시작
+    status: "online",
+    analysisItems: [
+      { id: "hybrid_health_score", name: "하이브리드 건강도", type: "number", unit: "%" },
+      { id: "personalized_prediction", name: "개인화 예측", type: "object", unit: "" },
+      { id: "cluster_analysis", name: "클러스터 분석", type: "object", unit: "" },
+      { id: "learning_progress", name: "학습 진행도", type: "object", unit: "" },
+      { id: "farm_recommendations", name: "농가별 맞춤 권장사항", type: "string", unit: "" }
+    ]
+  },
+  "mobilenet-plant": {
+    id: "mobilenet-plant",
+    name: "MobileNet 식물 분석 모델",
+    accuracy: 95,
+    status: "online",
+    analysisItems: [
+      { id: "classification", name: "식물 분류", type: "string", unit: "" },
+      { id: "confidence", name: "신뢰도", type: "number", unit: "%" },
+      { id: "leaf_analysis", name: "잎 분석", type: "object", unit: "" }
+    ]
+  },
+  "resnet-diagnosis": {
+    id: "resnet-diagnosis",
+    name: "ResNet 식물 진단 모델",
+    accuracy: 94,
+    status: "online",
+    analysisItems: [
+      { id: "diagnosis", name: "진단 결과", type: "string", unit: "" },
+      { id: "severity", name: "심각도", type: "number", unit: "점" },
+      { id: "treatment", name: "치료 방안", type: "string", unit: "" }
+    ]
+  },
+  "efficientnet-expert": {
+    id: "efficientnet-expert",
+    name: "EfficientNet 식물 전문가 모델",
+    accuracy: 96,
+    status: "online",
+    analysisItems: [
+      { id: "expert_analysis", name: "전문가 분석", type: "object", unit: "" },
+      { id: "growth_stage", name: "성장 단계", type: "string", unit: "" },
+      { id: "care_recommendations", name: "관리 권장사항", type: "string", unit: "" }
+    ]
+  }
+}
+
+// 로컬 스토리지 키
+const STORAGE_KEYS = {
+  UPLOADED_IMAGES: 'crop-analysis-uploaded-images',
+  SAVED_ANALYSES: 'crop-analysis-saved-analyses',
+  CAMERAS: 'crop-analysis-cameras',
+  ENVIRONMENT_DATA: 'crop-analysis-environment-data'
+}
+
+// 날짜 포맷팅 함수
+const formatDate = (date: Date | string | null, format?: string) => {
+  if (!date) return "날짜 없음"
+  
+  const dateObj = typeof date === 'string' ? new Date(date) : date
+  if (isNaN(dateObj.getTime())) return "잘못된 날짜"
+  
+  const year = dateObj.getFullYear()
+  const month = dateObj.getMonth() + 1
+  const day = dateObj.getDate()
+  
+  if (format === "HH:mm") {
+    return `${dateObj.getHours().toString().padStart(2, "0")}:${dateObj.getMinutes().toString().padStart(2, "0")}`
+  }
+  return `${year}년 ${month}월 ${day}일`
+}
 
 export default function CropGrowthAnalysis() {
   const { user } = useAuth()
   const userId = user?.id || "anonymous"
-  const { connectionStatus, sendAnalysisRequest } = useBackend()
 
   // 상태 변수들
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([])
@@ -86,6 +194,7 @@ export default function CropGrowthAnalysis() {
   const [savedAnalyses, setSavedAnalyses] = useState<SavedAnalysis[]>([])
   const [cameras, setCameras] = useState<ObservationCamera[]>([])
   const [newCameraName, setNewCameraName] = useState("")
+
   const [selectedCamera, setSelectedCamera] = useState<string>("")
 
   // 환경 데이터 상태
@@ -139,78 +248,46 @@ export default function CropGrowthAnalysis() {
   const [farmId, setFarmId] = useState("demo_farm_001")
   const [farmInfo, setFarmInfo] = useState({
     facility_type: "smart_greenhouse",
-    location: "gyeonggi",
+    automation_level: "high",
     crop_type: "tomato",
-    experience_years: 5
+    location_info: { region: "경기도", city: "성남시" },
+    experience_level: 4
   })
   const [farmAnalytics, setFarmAnalytics] = useState<any>(null)
-  const [federatedAccuracy, setFederatedAccuracy] = useState(85)
-  const [trainingCount, setTrainingCount] = useState(0)
+  const [federatedModels, setFederatedModels] = useState<any[]>([])
   const [useFederatedAI, setUseFederatedAI] = useState(false)
-  
-  // 사용자 정의 환경 데이터
-  const [customEnvironmentData, setCustomEnvironmentData] = useState<EnvironmentData>({
-    innerTemperature: 25.5,
-    outerTemperature: 22.3,
-    innerHumidity: 68,
-    rootZoneTemperature: 24.2,
-    solarRadiation: 420,
-    ph: 6.5,
-    ec: 1.8,
-    dissolvedOxygen: 7.2,
-    timestamp: new Date()
-  })
+  const [federatedAccuracy, setFederatedAccuracy] = useState(85) // 동적 정확도
 
-  // 식물 종류 정의
+  // 식물 종류 데이터
   const plantTypes = [
-    { id: "tomato", name: "토마토", icon: "🍅" },
-    { id: "cucumber", name: "오이", icon: "🥒" },
-    { id: "pepper", name: "고추", icon: "🌶️" },
-    { id: "lettuce", name: "상추", icon: "🥬" },
-    { id: "strawberry", name: "딸기", icon: "🍓" },
-    { id: "spinach", name: "시금치", icon: "🥬" },
-    { id: "cabbage", name: "배추", icon: "🥬" },
-    { id: "carrot", name: "당근", icon: "🥕" },
-    { id: "potato", name: "감자", icon: "🥔" },
-    { id: "onion", name: "양파", icon: "🧅" },
-    { id: "garlic", name: "마늘", icon: "🧄" },
-    { id: "corn", name: "옥수수", icon: "🌽" }
+    { id: "tomato", name: "토마토" },
+    { id: "cucumber", name: "오이" },
+    { id: "pepper", name: "고추" },
+    { id: "lettuce", name: "상추" },
+    { id: "strawberry", name: "딸기" },
+    { id: "spinach", name: "시금치" }
   ]
 
   // 컴포넌트 초기화
   useEffect(() => {
     initializeComponent()
-  }, [])
+  }, [userId])
 
-  // 환경 데이터 시뮬레이션 시작
+  // AI 엔진 상태 모니터링
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      startEnvironmentDataSimulation()
-    }
-  }, [])
+    const interval = setInterval(() => {
+      checkAiEngineStatus()
+    }, 5000) // 5초마다 체크
 
-  // AI 엔진 상태 체크
-  useEffect(() => {
-    const interval = setInterval(checkAiEngineStatus, 10000) // 10초마다 체크
     return () => clearInterval(interval)
   }, [])
 
   const initializeComponent = async () => {
-    console.log("🚀 스마트팜 분석 시스템 초기화 시작")
-    
     try {
+      setIsLoading(true)
+      
       // 로컬 스토리지에서 데이터 로드
       loadFromStorage()
-      
-      // 환경 데이터 히스토리 생성
-      const historyData = generateEnvironmentHistory()
-      setHistoricalEnvironmentData(historyData)
-      
-      // 연합학습 모델 초기화
-      await loadFederatedModels()
-      
-      // 농가 분석 현황 로드
-      await loadFarmAnalytics()
       
       // AI 엔진 초기화
       await initializeAiEngine()
@@ -218,11 +295,19 @@ export default function CropGrowthAnalysis() {
       // 백엔드 연결 확인
       await checkBackendConnection()
       
-    } catch (error) {
-      console.error("초기화 중 오류 발생:", error)
-    } finally {
+      // 연합학습 모델 로드
+      await loadFederatedModels()
+      
+      // 농가 분석 현황 로드
+      await loadFarmAnalytics()
+      
+      // 환경 데이터 시뮬레이션 시작
+      startEnvironmentDataSimulation()
+      
       setIsLoading(false)
-      console.log("✅ 스마트팜 분석 시스템 초기화 완료")
+    } catch (error) {
+      console.error("초기화 오류:", error)
+      setIsLoading(false)
     }
   }
 
@@ -231,145 +316,161 @@ export default function CropGrowthAnalysis() {
       // 업로드된 이미지 로드
       const savedImages = localStorage.getItem(STORAGE_KEYS.UPLOADED_IMAGES)
       if (savedImages) {
-        const parsedImages = JSON.parse(savedImages)
-        // 사용자별 필터링
-        const userImages = parsedImages.filter((img: UploadedImage) => img.userId === userId)
-        setUploadedImages(userImages)
+        const images = JSON.parse(savedImages)
+        setUploadedImages(images.filter((img: any) => img.userId === userId))
       }
 
       // 저장된 분석 결과 로드
       const savedAnalysesData = localStorage.getItem(STORAGE_KEYS.SAVED_ANALYSES)
       if (savedAnalysesData) {
-        const parsedAnalyses = JSON.parse(savedAnalysesData)
-        const userAnalyses = parsedAnalyses.filter((analysis: SavedAnalysis) => analysis.userId === userId)
-        setSavedAnalyses(userAnalyses)
+        const analyses = JSON.parse(savedAnalysesData)
+        setSavedAnalyses(analyses.filter((analysis: any) => analysis.userId === userId))
       }
 
-      // 카메라 설정 로드
+      // 카메라 데이터 로드
       const savedCameras = localStorage.getItem(STORAGE_KEYS.CAMERAS)
       if (savedCameras) {
-        const parsedCameras = JSON.parse(savedCameras)
-        const userCameras = parsedCameras.filter((camera: ObservationCamera) => camera.userId === userId)
-        setCameras(userCameras)
+        const camerasData = JSON.parse(savedCameras)
+        setCameras(camerasData.filter((camera: any) => camera.userId === userId))
       }
 
+      // 환경 데이터 히스토리 생성
+      generateEnvironmentHistory()
     } catch (error) {
-      console.error("로컬 스토리지 로드 실패:", error)
+      console.error("스토리지 로드 오류:", error)
     }
   }
 
   const generateEnvironmentHistory = () => {
+    // 지난 7일간의 환경 데이터 히스토리 생성
     const history: EnvironmentData[] = []
-    const now = new Date()
-    
-    for (let i = 30; i >= 0; i--) {
-      const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000)
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date()
+      date.setDate(date.getDate() - i)
       
-      // 계절적 변화를 반영한 환경 데이터 생성
-      const month = date.getMonth()
-      const baseTemp = 20 + Math.sin((month - 3) * Math.PI / 6) * 10 // 계절별 온도 변화
-      
-      history.push({
-        innerTemperature: baseTemp + Math.random() * 6 - 3,
-        outerTemperature: baseTemp + Math.random() * 10 - 5,
-        innerHumidity: 60 + Math.random() * 20,
-        rootZoneTemperature: baseTemp - 2 + Math.random() * 4,
-        solarRadiation: 300 + Math.random() * 400,
-        ph: 6.0 + Math.random() * 1.5,
-        ec: 1.2 + Math.random() * 1.0,
-        dissolvedOxygen: 6.0 + Math.random() * 2.0,
-        timestamp: date
-      })
+      for (let hour = 0; hour < 24; hour += 2) {
+        const timestamp = new Date(date)
+        timestamp.setHours(hour, 0, 0, 0)
+        
+        history.push({
+          innerTemperature: 25.5 + (Math.random() - 0.5) * 4,
+          outerTemperature: 22.3 + (Math.random() - 0.5) * 6,
+          innerHumidity: 68 + (Math.random() - 0.5) * 20,
+          rootZoneTemperature: 24.2 + (Math.random() - 0.5) * 3,
+          solarRadiation: hour >= 6 && hour <= 18 ? 420 + (Math.random() - 0.5) * 200 : Math.random() * 50,
+          ph: 6.5 + (Math.random() - 0.5) * 1,
+          ec: 1.8 + (Math.random() - 0.5) * 0.8,
+          dissolvedOxygen: 7.2 + (Math.random() - 0.5) * 2,
+          timestamp
+        })
+      }
     }
-    
-    return history
+    setHistoricalEnvironmentData(history)
   }
 
+  // 연합학습 관련 함수들
   const loadFederatedModels = async () => {
     try {
-      console.log("🤖 연합학습 모델 로딩 시작")
+      console.log("🔄 연합학습 모델 로드 중...")
       
-      // 연합학습 정확도 시뮬레이션
-      const storedTrainingCount = localStorage.getItem('federated_training_count')
-      const currentCount = storedTrainingCount ? parseInt(storedTrainingCount) : 0
-      
-      setTrainingCount(currentCount)
-      setFederatedAccuracy(calculateFederatedAccuracy(currentCount, false))
-      
-      // 농가 분류 시뮬레이션
-      await classifyFarm()
-      
-      console.log("✅ 연합학습 모델 로딩 완료")
+      if (backendConnectionStatus === "connected") {
+        // 백엔드에서 연합학습 모델 로드
+        const response = await fetch('/api/v1/federated/models')
+        const data = await response.json()
+        
+        if (data.status === 'success') {
+          setFederatedModels(data.data)
+          console.log("✅ 연합학습 모델 로드 완료:", data.data.length)
+        }
+      } else {
+        // 기본 연합학습 모델 설정
+        setFederatedModels([
+          {
+            id: "federated-hybrid",
+            name: "연합학습 하이브리드 모델",
+            category: "연합학습",
+            accuracy: "진화형 (사용할수록 향상)",
+            description: "기존 AI + 개인화 학습을 결합한 하이브리드 모델"
+          }
+        ])
+      }
     } catch (error) {
-      console.error("연합학습 모델 로딩 실패:", error)
+      console.error("연합학습 모델 로드 실패:", error)
     }
   }
 
   const loadFarmAnalytics = async () => {
     try {
-      console.log("📊 농가 분석 현황 로딩")
-      
-      // 시뮬레이션된 농가 분석 데이터
-      const mockAnalytics = {
-        total_farms: 1247,
-        active_farms: 892,
-        clusters: {
-          "smart_greenhouse": 324,
-          "traditional_greenhouse": 198,
-          "hydroponic": 156,
-          "soil_based": 214
-        },
-        performance: {
-          accuracy_improvement: 12.5,
-          yield_increase: 8.3,
-          resource_efficiency: 15.7
+      if (backendConnectionStatus === "connected") {
+        const response = await fetch(`/api/v1/federated/farm-analytics/${farmId}`)
+        const data = await response.json()
+        
+        if (data.status === 'success') {
+          setFarmAnalytics(data.data)
+          console.log("✅ 농가 분석 현황 로드:", data.data)
+          
+          // 정확도 계산: 기본 85% + 학습 데이터 개수에 따른 향상
+          const accuracy = calculateFederatedAccuracy(data.data.training_data_count, data.data.personalization_ready)
+          setFederatedAccuracy(accuracy)
         }
+      } else {
+        // 시뮬레이션 데이터
+        const simulatedData = {
+          farm_id: farmId,
+          cluster_type: "smart_greenhouse",
+          training_data_count: 5,
+          personalization_ready: false,
+          next_retrain_at: 15
+        }
+        setFarmAnalytics(simulatedData)
+        
+        // 시뮬레이션 정확도 계산
+        const accuracy = calculateFederatedAccuracy(simulatedData.training_data_count, simulatedData.personalization_ready)
+        setFederatedAccuracy(accuracy)
       }
-      
-      setFarmAnalytics(mockAnalytics)
-      console.log("✅ 농가 분석 현황 로딩 완료")
     } catch (error) {
-      console.error("농가 분석 현황 로딩 실패:", error)
+      console.error("농가 분석 현황 로드 실패:", error)
     }
   }
 
   const calculateFederatedAccuracy = (trainingCount: number, isPersonalized: boolean) => {
-    // 기본 정확도 85%에서 시작
+    // 기본 정확도: 85%
     let accuracy = 85
     
-    // 훈련 횟수에 따른 정확도 향상 (최대 95%)
-    const trainingBonus = Math.min(trainingCount * 0.5, 10)
-    accuracy += trainingBonus
+    // 학습 데이터에 따른 향상 (최대 10% 향상)
+    const dataBonus = Math.min(trainingCount * 0.5, 10) // 데이터 2개당 1% 향상, 최대 10%
     
-    // 개인화 모델 보너스
-    if (isPersonalized && trainingCount >= 10) {
-      accuracy += 2
-    }
+    // 개인화 모델 완성 시 추가 보너스 (5% 향상)
+    const personalizationBonus = isPersonalized ? 5 : 0
     
-    // 최대 97%로 제한
-    return Math.min(accuracy, 97)
+    // 클러스터 타입에 따른 보너스
+    const clusterBonus = farmAnalytics?.cluster_type === "smart_greenhouse" ? 2 : 
+                        farmAnalytics?.cluster_type === "traditional_greenhouse" ? 1 : 0
+    
+    accuracy = accuracy + dataBonus + personalizationBonus + clusterBonus
+    
+    // 최대 98%로 제한
+    return Math.min(accuracy, 98)
   }
 
   const classifyFarm = async () => {
     try {
-      console.log("🏭 농가 분류 진행 중...")
-      
-      // 농가 정보 기반 클러스터 분류 시뮬레이션
-      let clusterType = "smart_greenhouse"
-      
-      if (farmInfo.facility_type === "traditional_greenhouse") {
-        clusterType = "traditional_greenhouse"
-      } else if (farmInfo.crop_type === "lettuce" || farmInfo.crop_type === "spinach") {
-        clusterType = "hydroponic"
-      } else if (farmInfo.experience_years < 3) {
-        clusterType = "soil_based"
+      if (backendConnectionStatus === "connected") {
+        const response = await fetch('/api/v1/federated/farm-classification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            farmId: farmId,
+            farmInfo: farmInfo
+          })
+        })
+        
+        const data = await response.json()
+        if (data.status === 'success') {
+          console.log("✅ 농가 분류 완료:", data.data.cluster_type)
+          await loadFarmAnalytics() // 분류 후 현황 재로드
+        }
       }
-      
-      console.log(`✅ 농가 분류 완료: ${clusterType}`)
-      
-      // 농가 정보 업데이트
-      setFarmInfo(prev => ({ ...prev, cluster_type: clusterType }))
-      
     } catch (error) {
       console.error("농가 분류 실패:", error)
     }
@@ -406,55 +507,30 @@ export default function CropGrowthAnalysis() {
       
       let result: any = {}
 
-      // 백엔드 연결 상태 확인 후 분기
-      if (backendConnectionStatus === "connected") {
-        console.log("🌐 온라인 백엔드 연합학습 분석 모드")
-        
-        // Railway 백엔드로 연합학습 분석 요청
-        const RAILWAY_API_URL = "https://dolkim85-smartfarm-backend-production.up.railway.app"
+      if (backendConnectionStatus === "connected" && useFederatedAI) {
+        // 백엔드 연합학습 AI 분석
+        console.log("🌐 백엔드 연합학습 AI 분석 모드")
         
         const formData = new FormData()
-        // 백엔드 API 스펙에 맞게 'images' 필드로 모든 이미지 전송
-        selectedImageObjects.forEach((image) => {
-          formData.append('images', image.file)
-        })
         formData.append('farmId', farmId)
-        formData.append('farmInfo', JSON.stringify(farmInfo))
         formData.append('environmentData', JSON.stringify(analysisEnvironmentData))
         formData.append('modelId', selectedModel)
         formData.append('analysisItems', JSON.stringify(selectedAnalysisItems))
         formData.append('plantType', selectedPlantType)
-
-        console.log("📤 Railway 백엔드로 연합학습 분석 요청 전송...")
-        console.log("📋 전송 데이터:", {
-          imageCount: selectedImageObjects.length,
-          farmId: farmId,
-          farmInfo: farmInfo,
-          modelId: selectedModel,
-          analysisItems: selectedAnalysisItems,
-          plantType: selectedPlantType,
-          environmentData: analysisEnvironmentData
-        })
-
-        const response = await fetch(`${RAILWAY_API_URL}/api/v1/federated/analyze`, {
-          method: 'POST',
-          body: formData,
-          headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache'
-          },
-          mode: 'cors',
-          credentials: 'omit'
-        })
-
-        console.log("📊 백엔드 응답 상태:", response.status)
+        formData.append('useExistingAI', 'true')
+        formData.append('farmInfo', JSON.stringify(farmInfo))
         
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-        }
-
+        // 이미지 추가
+        selectedImageObjects.forEach((imageObj, index) => {
+          formData.append('images', imageObj.file)
+        })
+        
+        const response = await fetch('/api/v1/federated/analyze', {
+          method: 'POST',
+          body: formData
+        })
+        
         const data = await response.json()
-        console.log("📥 백엔드 응답 데이터:", data)
         
         if (data.status === 'success') {
           result = data.data
@@ -533,39 +609,43 @@ export default function CropGrowthAnalysis() {
 
   const submitFeedback = async (rating: number) => {
     try {
-      console.log("📝 사용자 피드백 제출:", rating)
-      
-      // 훈련 횟수 증가
-      const newCount = trainingCount + 1
-      setTrainingCount(newCount)
-      localStorage.setItem('federated_training_count', newCount.toString())
-      
-      // 정확도 재계산
-      const newAccuracy = calculateFederatedAccuracy(newCount, newCount >= 10)
-      setFederatedAccuracy(newAccuracy)
-      
-      // 연합학습 모델 업데이트 시뮬레이션
-      if (backendConnectionStatus === "connected") {
-        const RAILWAY_API_URL = "https://dolkim85-smartfarm-backend-production.up.railway.app"
-        
-        await fetch(`${RAILWAY_API_URL}/api/v1/federated/feedback`, {
+      if (backendConnectionStatus === "connected" && analysisResult && useFederatedAI) {
+        const response = await fetch('/api/v1/federated/feedback', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             farmId: farmId,
-            rating: rating,
-            analysisId: analysisResult?.date,
-            environmentData: analysisResult?.environmentData
+            inputData: {
+              environment_data: analysisResult.environmentData,
+              image_features: {},
+              plant_type: selectedPlantType
+            },
+            actualResult: analysisResult,
+            userFeedback: rating
           })
         })
+        
+        const data = await response.json()
+        if (data.status === 'success') {
+          console.log("✅ 피드백 전송 완료")
+          
+          // 농가 분석 현황 업데이트
+          if (data.farm_analytics) {
+            setFarmAnalytics(data.farm_analytics)
+            
+            // 정확도 재계산
+            const newAccuracy = calculateFederatedAccuracy(
+              data.farm_analytics.training_data_count, 
+              data.farm_analytics.personalization_ready
+            )
+            setFederatedAccuracy(newAccuracy)
+          }
+          
+          alert("피드백이 개인화 학습에 반영되었습니다!")
+        }
       }
-      
-      console.log("✅ 피드백 제출 완료 - 모델 성능 향상!")
-      alert(`피드백이 제출되었습니다! 연합학습 정확도: ${newAccuracy.toFixed(1)}%`)
-      
     } catch (error) {
-      console.error("피드백 제출 실패:", error)
-      alert("피드백 제출 중 오류가 발생했습니다.")
+      console.error("피드백 전송 실패:", error)
     }
   }
 
@@ -712,47 +792,44 @@ export default function CropGrowthAnalysis() {
     const interval = setInterval(() => {
       setEnvironmentData(prev => ({
         ...prev,
-        innerTemperature: prev.innerTemperature + (Math.random() - 0.5) * 0.5,
-        outerTemperature: prev.outerTemperature + (Math.random() - 0.5) * 1.0,
-        innerHumidity: Math.max(30, Math.min(90, prev.innerHumidity + (Math.random() - 0.5) * 2)),
-        rootZoneTemperature: prev.rootZoneTemperature + (Math.random() - 0.5) * 0.3,
-        solarRadiation: Math.max(0, prev.solarRadiation + (Math.random() - 0.5) * 50),
-        ph: Math.max(5.0, Math.min(8.0, prev.ph + (Math.random() - 0.5) * 0.1)),
-        ec: Math.max(0.5, Math.min(3.0, prev.ec + (Math.random() - 0.5) * 0.05)),
-        dissolvedOxygen: Math.max(4.0, Math.min(12.0, prev.dissolvedOxygen + (Math.random() - 0.5) * 0.2)),
+        innerTemperature: 25.5 + (Math.random() - 0.5) * 2,
+        outerTemperature: 22.3 + (Math.random() - 0.5) * 3,
+        innerHumidity: 68 + (Math.random() - 0.5) * 10,
+        rootZoneTemperature: 24.2 + (Math.random() - 0.5) * 1.5,
+        solarRadiation: 420 + (Math.random() - 0.5) * 100,
+        ph: 6.5 + (Math.random() - 0.5) * 0.5,
+        ec: 1.8 + (Math.random() - 0.5) * 0.4,
+        dissolvedOxygen: 7.2 + (Math.random() - 0.5) * 1,
         timestamp: new Date()
       }))
-    }, 5000) // 5초마다 업데이트
+    }, 30000) // 30초마다 업데이트
 
     return () => clearInterval(interval)
   }
 
+  // 이미지 업로드 처리
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (!files) return
-
-    Array.from(files).forEach(file => {
-      if (file.type.startsWith('image/')) {
-        const imageId = Date.now().toString() + Math.random().toString(36).substr(2, 9)
-        const imageUrl = URL.createObjectURL(file)
-        
-        const newImage: UploadedImage = {
-          id: imageId,
-          file,
-          url: imageUrl,
-          timestamp: new Date(),
-          userId
-        }
-
-        setUploadedImages(prev => {
-          const updated = [...prev, newImage]
-          localStorage.setItem(STORAGE_KEYS.UPLOADED_IMAGES, JSON.stringify(updated))
-          return updated
-        })
-      }
-    })
+    const files = Array.from(event.target.files || [])
+    const newImages: UploadedImage[] = files.map(file => ({
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      file,
+      url: URL.createObjectURL(file),
+      timestamp: new Date(),
+      userId
+    }))
+    
+    const updatedImages = [...uploadedImages, ...newImages]
+    setUploadedImages(updatedImages)
+    
+    // 로컬 스토리지에 저장
+    try {
+      localStorage.setItem(STORAGE_KEYS.UPLOADED_IMAGES, JSON.stringify(updatedImages))
+    } catch (error) {
+      console.error("이미지 저장 오류:", error)
+    }
   }
 
+  // 이미지 선택 토글
   const toggleAnalysisImageSelection = (imageId: string) => {
     setSelectedAnalysisImages(prev => 
       prev.includes(imageId) 
@@ -761,6 +838,7 @@ export default function CropGrowthAnalysis() {
     )
   }
 
+  // 분석 항목 선택 처리
   const handleAnalysisItemChange = (itemId: string, checked: boolean) => {
     setSelectedAnalysisItems(prev => 
       checked 
@@ -769,14 +847,20 @@ export default function CropGrowthAnalysis() {
     )
   }
 
+  // 분석 실행
   const runAnalysis = async () => {
     if (!isAiEngineReady) {
       alert("AI 엔진이 준비되지 않았습니다. 잠시 후 다시 시도해주세요.")
       return
     }
 
-    if (selectedAnalysisImages.length === 0) {
+    if ((selectedAnalysisImages || []).length === 0) {
       alert("분석할 이미지를 선택해주세요.")
+      return
+    }
+
+    if ((selectedAnalysisItems || []).length === 0) {
+      alert("분석 항목을 선택해주세요.")
       return
     }
 
@@ -788,7 +872,8 @@ export default function CropGrowthAnalysis() {
     setIsAnalyzing(true)
     
     try {
-      const selectedImageObjects = uploadedImages.filter(img => selectedAnalysisImages.includes(img.id))
+      const selectedImageObjects = (uploadedImages || []).filter(img => (selectedAnalysisImages || []).includes(img.id))
+      const analysisData: { [key: string]: any } = {}
       
       // 분석 시점 환경 데이터 결정
       const analysisEnvironmentData = useCurrentEnvironmentData 
@@ -798,94 +883,84 @@ export default function CropGrowthAnalysis() {
       console.log("🔍 하이브리드 AI 분석 시작")
       console.log("🌡️ 분석에 사용할 환경 데이터:", analysisEnvironmentData)
       
-      // 백엔드 연결 상태 확인 후 분기
       if (backendConnectionStatus === "connected") {
-        console.log("🌐 온라인 백엔드 AI 분석 모드")
+        console.log("🌐 Railway 온라인 백엔드 AI 서버 분석 모드")
         
-        // Railway 백엔드로 실제 이미지 분석 요청
-        const RAILWAY_API_URL = "https://dolkim85-smartfarm-backend-production.up.railway.app"
-        
-        const formData = new FormData()
-        // 백엔드 API 스펙에 맞게 'images' 필드로 모든 이미지 전송
-        selectedImageObjects.forEach((image) => {
-          formData.append('images', image.file)
-        })
-        formData.append('modelId', selectedModel)
-        formData.append('analysisItems', JSON.stringify(selectedAnalysisItems))
-        formData.append('environmentData', JSON.stringify(analysisEnvironmentData))
-        formData.append('plantType', selectedPlantType)
-
-        console.log("📤 Railway 백엔드로 분석 요청 전송...")
-        console.log("📋 전송 데이터:", {
-          imageCount: selectedImageObjects.length,
-          modelId: selectedModel,
-          analysisItems: selectedAnalysisItems,
-          plantType: selectedPlantType,
-          environmentData: analysisEnvironmentData
-        })
-
-        const response = await fetch(`${RAILWAY_API_URL}/api/v1/analyze`, {
-          method: 'POST',
-          body: formData,
-          headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache'
-          },
-          mode: 'cors',
-          credentials: 'omit'
-        })
-
-        console.log("📊 백엔드 응답 상태:", response.status)
-        
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-        }
-
-        const data = await response.json()
-        console.log("📥 백엔드 응답 데이터:", data)
-        
-        if (data.status === 'success') {
-          // 백엔드 분석 결과를 프론트엔드 형식으로 변환
-          const backendResult = data.data
+        try {
+          // Railway 백엔드로 실제 이미지 분석 요청
+          const RAILWAY_API_URL = "https://dolkim85-smartfarm-backend-production.up.railway.app"
           
-          const analysisData: { [key: string]: any } = {}
-          
-          // 백엔드 결과를 프론트엔드 분석 항목에 매핑
-          if (backendResult.health) analysisData['health'] = backendResult.health
-          if (backendResult.disease) analysisData['disease'] = backendResult.disease
-          if (backendResult.growth) analysisData['growth'] = backendResult.growth
-          if (backendResult.nutrition) analysisData['nutrition'] = backendResult.nutrition
-          if (backendResult.classification) analysisData['classification'] = backendResult.classification
-          if (backendResult.confidence) analysisData['confidence'] = backendResult.confidence
-          if (backendResult.diagnosis) analysisData['diagnosis'] = backendResult.diagnosis
-          if (backendResult.severity) analysisData['severity'] = backendResult.severity
-          if (backendResult.treatment) analysisData['treatment'] = backendResult.treatment
-          
-          const finalResult: AnalysisResult = {
-            modelId: selectedModel,
-            selectedAnalysisItems: selectedAnalysisItems,
-            analysisData: analysisData,
-            environmentData: analysisEnvironmentData,
-            condition: backendResult.condition || "양호",
-            recommendations: backendResult.recommendations || ["AI 분석이 완료되었습니다."],
-            date: new Date().toISOString(),
-            comparedImages: selectedAnalysisImages
+          const formData = new FormData()
+          selectedImageObjects.forEach((image, index) => {
+            formData.append(`image_${index}`, image.file)
+          })
+          formData.append('model_id', selectedModel)
+          formData.append('analysis_items', JSON.stringify(selectedAnalysisItems))
+          formData.append('environment_data', JSON.stringify(analysisEnvironmentData))
+          formData.append('plant_type', selectedPlantType)
+
+          console.log("📤 Railway 백엔드로 분석 요청 전송...")
+          const response = await fetch(`${RAILWAY_API_URL}/api/v1/analyze`, {
+            method: 'POST',
+            body: formData,
+            mode: 'cors'
+          })
+
+          if (response.ok) {
+            const serverResult = await response.json()
+            console.log("✅ Railway 백엔드 분석 성공:", serverResult)
+            
+            // 서버에서 받은 분석 결과를 우선 사용
+            if (serverResult.data) {
+              Object.assign(analysisData, serverResult.data)
+            }
+          } else {
+            throw new Error(`Railway 서버 분석 실패: HTTP ${response.status}`)
           }
-          
-          setAnalysisResult(finalResult)
-          console.log("✅ 온라인 백엔드 분석 완료:", finalResult)
-          alert("🎉 온라인 AI 분석이 완료되었습니다!")
-          return
-        } else {
-          throw new Error(data.message || "백엔드 분석 실패")
+
+        } catch (serverError) {
+          console.error("⚠️ Railway 백엔드 분석 실패:", serverError)
+          console.log("🔄 클라이언트 사이드 백업 분석으로 전환...")
+          await performClientSideAnalysis(selectedImageObjects, analysisEnvironmentData)
         }
+      } else {
+        console.log("🚨 Railway 백엔드 연결 안됨 - 클라이언트 사이드 분석만 실행")
+        await performClientSideAnalysis(selectedImageObjects, analysisEnvironmentData)
       }
       
-      // 클라이언트 사이드 분석 (백엔드 연결 실패 시 폴백)
-      console.log("💻 클라이언트 사이드 AI 분석 모드")
-      await performClientSideAnalysis(selectedImageObjects, analysisEnvironmentData)
+      // 선택된 분석 항목에 따른 결과 생성
+      const selectedModelConfig = AI_MODELS[selectedModel as keyof typeof AI_MODELS] || AI_MODELS["plant-health-basic"]
+      
+      for (const itemId of (selectedAnalysisItems || [])) {
+        const item = selectedModelConfig.analysisItems.find(ai => ai.id === itemId)
+        if (item) {
+          if (item.type === "string") {
+            analysisData[itemId] = generateMockStringResult(itemId)
+          } else if (item.type === "number") {
+            analysisData[itemId] = Math.floor(Math.random() * 100) + 1
+          } else if (item.type === "object") {
+            analysisData[itemId] = generateMockObjectResult(itemId)
+          }
+        }
+      }
+
+      // 분석 결과 생성 (환경 데이터 포함)
+      const result: AnalysisResult = {
+        modelId: selectedModel,
+        selectedAnalysisItems: selectedAnalysisItems || [],
+        analysisData,
+        environmentData: analysisEnvironmentData, // 분석 시점의 정확한 환경 데이터 저장
+        condition: analysisData.health || "양호",
+        recommendations: generateRecommendations(analysisData, analysisEnvironmentData) || [],
+        date: new Date().toISOString(),
+        comparedImages: (selectedImageObjects || []).map(img => img.id)
+      }
+
+      setAnalysisResult(result)
+      alert("🎉 하이브리드 AI 분석이 완료되었습니다!")
+
     } catch (error) {
-      console.error("분석 중 오류:", error)
+      console.error("분석 오류:", error)
       alert("분석 중 오류가 발생했습니다.")
     } finally {
       setIsAnalyzing(false)
@@ -1387,41 +1462,23 @@ export default function CropGrowthAnalysis() {
           </CardHeader>
           <CardContent className="p-0">
             <Tabs defaultValue="analysis" className="w-full">
-              <TabsList className="grid w-full grid-cols-7 bg-gray-100 rounded-none border-b">
+              <TabsList className="grid w-full grid-cols-4 bg-gray-100 rounded-none border-b">
                 <TabsTrigger value="analysis" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4" />
                     실시간 분석
                   </div>
                 </TabsTrigger>
-                <TabsTrigger value="environment" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                <TabsTrigger value="data-management" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
                   <div className="flex items-center gap-2">
-                    <Thermometer className="h-4 w-4" />
-                    환경 데이터
-                  </div>
-                </TabsTrigger>
-                <TabsTrigger value="image-analysis" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <Images className="h-4 w-4" />
-                    이미지 분석
-                  </div>
-                </TabsTrigger>
-                <TabsTrigger value="federated" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4" />
-                    연합학습
+                    <Database className="h-4 w-4" />
+                    작물 데이터
                   </div>
                 </TabsTrigger>
                 <TabsTrigger value="observation-camera" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
                   <div className="flex items-center gap-2">
                     <Camera className="h-4 w-4" />
-                    카메라 관리
-                  </div>
-                </TabsTrigger>
-                <TabsTrigger value="data-management" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <Database className="h-4 w-4" />
-                    데이터 관리
+                    실시간 모니터링
                   </div>
                 </TabsTrigger>
                 <TabsTrigger value="settings" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
@@ -2997,60 +3054,6 @@ export default function CropGrowthAnalysis() {
             </Card>
           </div>
         )}
-
-        {/* 새로운 모듈화된 탭 콘텐츠들 */}
-        <div className="hidden">
-          {/* 환경 데이터 탭 - 실제 사용 시 TabsContent로 감싸기 */}
-          <EnvironmentDataDisplay 
-            data={useCurrentEnvironmentData 
-              ? environmentData 
-              : getEnvironmentDataForDateTime(selectedEnvironmentDate, selectedEnvironmentTime)
-            }
-            showTimestamp={true}
-            compact={false}
-          />
-
-          {/* 이미지 분석 탭 */}
-          <ImageAnalysis 
-            onAnalysisComplete={(results) => {
-              console.log('분석 완료:', results)
-              // 분석 결과를 상태에 저장하거나 다른 처리
-            }}
-            maxImages={10}
-            allowedFormats={['image/jpeg', 'image/png', 'image/webp']}
-            maxFileSize={10 * 1024 * 1024}
-          />
-
-          {/* 연합학습 탭 */}
-          <FederatedLearning 
-            onStatusChange={(status) => {
-              console.log('연합학습 상태 변경:', status)
-              // 연합학습 상태를 메인 컴포넌트에서 관리
-            }}
-            autoJoin={false}
-            shareData={true}
-          />
-
-          {/* 카메라 관리 탭 */}
-          <CameraManagement />
-
-          {/* 데이터 관리 탭 */}
-          <DataManagement 
-            analysisResults={savedAnalyses.map(analysis => ({
-              imageId: analysis.id,
-              health: analysis.result.condition.includes('좋음') ? '좋음' : '주의',
-              growth: '정상',
-              recommend: analysis.result.recommendations.join(', '),
-              analyzedAt: new Date(analysis.date)
-            }))}
-            environmentData={historicalEnvironmentData}
-            uploadedImages={uploadedImages}
-            onDataImported={(data) => {
-              console.log('데이터 가져오기:', data)
-              // 가져온 데이터를 상태에 반영
-            }}
-          />
-        </div>
       </div>
     </div>
   )
