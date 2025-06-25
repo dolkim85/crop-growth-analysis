@@ -633,11 +633,11 @@ export default function CropGrowthAnalysis() {
           console.log("🔄 서버 초기화 중... 진행률:", onlineData.progress + "%")
           setBackendConnectionStatus("checking")
           
-          // 5초 후 재시도
-          setTimeout(() => {
-            console.log("🔄 서버 초기화 완료 대기 중... 재시도")
-            checkBackendConnection()
-          }, 5000)
+                  // 5초 후 재시도
+        setTimeout(async () => {
+          console.log("🔄 서버 초기화 완료 대기 중... 재시도")
+          await checkBackendConnection()
+        }, 5000)
           return
         }
         
@@ -690,9 +690,9 @@ export default function CropGrowthAnalysis() {
         console.log("🔄 10초 후 자동 재연결 시도...")
         
         // 10초 후 자동 재시도
-        setTimeout(() => {
+        setTimeout(async () => {
           console.log("🔄 백엔드 재연결 시도...")
-          checkBackendConnection()
+          await checkBackendConnection()
         }, 10000)
       }
     }
