@@ -146,7 +146,7 @@ export default function CropGrowthAnalysis() {
   const [farmAnalytics, setFarmAnalytics] = useState<any>(null)
   const [federatedAccuracy, setFederatedAccuracy] = useState(85)
   const [trainingCount, setTrainingCount] = useState(0)
-  const [useFederatedAI, setUseFederatedAI] = useState(false)
+  const [useFederatedAI, setUseFederatedAI] = useState(false) // 임시 비활성화
   
   // 사용자 정의 환경 데이터
   const [customEnvironmentData, setCustomEnvironmentData] = useState<EnvironmentData>({
@@ -1813,7 +1813,7 @@ export default function CropGrowthAnalysis() {
                           </div>
 
                           <Button
-                            onClick={useFederatedAI ? runFederatedAnalysis : runAnalysis}
+                            onClick={runAnalysis}
                             disabled={isAnalyzing || selectedAnalysisImages.length === 0 || !selectedModel || selectedAnalysisItems.length === 0}
                             className={`w-full ${useFederatedAI 
                               ? "bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700" 
